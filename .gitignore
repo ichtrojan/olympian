@@ -1,0 +1,13 @@
+*.db
+*.db-shm
+*.db-wal
+*.test
+*.out
+test.db
+olympian.db
+/vendor/
+.DS_Store
+*.swp
+*.swo
+*~
+.env
