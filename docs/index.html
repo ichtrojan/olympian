@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Olympian - Database Migrations for Go</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --terminal-bg: #1a1e24;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent-green: #3fb950;
+            --accent-blue: #58a6ff;
+            --accent-purple: #bc8cff;
+            --accent-yellow: #f0c000;
+            --accent-red: #ff7b72;
+            --border-color: #30363d;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0d1117 0%, #1a1e24 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(88, 166, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(188, 140, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .hero-content {
+            text-align: center;
+            z-index: 1;
+            max-width: 900px;
+            padding: 2rem;
+        }
+
+        .terminal-prompt {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-green);
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.875rem 1.75rem;
+            border-radius: 6px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--accent-green);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            background: #2ea043;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(63, 185, 80, 0.3);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        .terminal-window {
+            background: var(--terminal-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 2rem 0;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .terminal-header {
+            background: var(--bg-tertiary);
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .terminal-button {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .btn-close { background: #ff5f56; }
+        .btn-minimize { background: #ffbd2e; }
+        .btn-maximize { background: #27c93f; }
+
+        .terminal-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-left: auto;
+        }
+
+        .terminal-body {
+            padding: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+
+        .terminal-line {
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .prompt {
+            color: var(--accent-green);
+            margin-right: 0.5rem;
+            user-select: none;
+        }
+
+        .command {
+            color: var(--accent-blue);
+        }
+
+        .output {
+            color: var(--text-secondary);
+            margin-left: 0;
+            padding-left: 0;
+        }
+
+        .output-success {
+            color: var(--accent-green);
+        }
+
+        .output-error {
+            color: var(--accent-red);
+        }
+
+        .section {
+            margin: 6rem 0;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent-blue);
+        }
+
+        .section-subtitle {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin-bottom: 3rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+
+        .feature-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(88, 166, 255, 0.15);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-title {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+            color: var(--accent-blue);
+        }
+
+        .code-block {
+            background: var(--terminal-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .code-block pre {
+            margin: 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .inline-code {
+            background: var(--bg-tertiary);
+            color: var(--accent-purple);
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+        }
+
+        .tab-container {
+            margin: 2rem 0;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 0;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .api-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+
+        .api-item {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .api-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .api-name {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-purple);
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        footer {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 3rem 2rem;
+            text-align: center;
+            margin-top: 6rem;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--accent-blue);
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .tagline {
+                font-size: 1.2rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .blink {
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .typing-demo {
+            background: var(--terminal-bg);
+            padding: 2rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin: 2rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div class="hero-content">
+            <div class="terminal-prompt">$ olympian --help</div>
+            <h1>Olympian</h1>
+            <p class="tagline">Laravel-inspired database migrations for Go</p>
+            <div class="cta-buttons">
+                <a href="#quickstart" class="btn btn-primary">
+                    <span>→</span> Get Started
+                </a>
+                <a href="https://github.com/ichtrojan/olympian" class="btn btn-secondary">
+                    <span>⚡</span> View on GitHub
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="section" id="quickstart">
+            <h2 class="section-title">Quick Start</h2>
+            <p class="section-subtitle">Get running in 60 seconds</p>
+
+            <div class="terminal-window">
+                <div class="terminal-header">
+                    <div class="terminal-button btn-close"></div>
+                    <div class="terminal-button btn-minimize"></div>
+                    <div class="terminal-button btn-maximize"></div>
+                    <div class="terminal-title">bash - olympian installation</div>
+                </div>
+                <div class="terminal-body">
+                    <div class="terminal-line">
+                        <span class="prompt">$</span>
+                        <span class="command">go install github.com/ichtrojan/olympian/cmd/olympian@latest</span>
+                    </div>
+                    <div class="terminal-line output">
+                        <span>go: downloading github.com/ichtrojan/olympian v1.0.0</span>
+                    </div>
+                    <div class="terminal-line output-success">
+                        <span>✓ Installation complete</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="prompt">$</span>
+                        <span class="command">olympian migrate create create_users_table</span>
+                    </div>
+                    <div class="terminal-line output-success">
+                        <span>Created migration: ./migrations/1735689123_create_users_table.go</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="prompt">$</span>
+                        <span class="blink">▊</span>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Configure Database</h3>
+
+            <div class="tab-container">
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab(event, 'mysql')">MySQL</button>
+                    <button class="tab" onclick="switchTab(event, 'postgres')">PostgreSQL</button>
+                    <button class="tab" onclick="switchTab(event, 'sqlite')">SQLite</button>
+                </div>
+
+                <div id="mysql" class="tab-content active">
+                    <div class="terminal-window">
+                        <div class="terminal-header">
+                            <div class="terminal-button btn-close"></div>
+                            <div class="terminal-button btn-minimize"></div>
+                            <div class="terminal-button btn-maximize"></div>
+                            <div class="terminal-title">.env</div>
+                        </div>
+                        <div class="terminal-body">
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_DRIVER</span>=mysql</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_HOST</span>=127.0.0.1</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_PORT</span>=3306</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_NAME</span>=bandit</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_USER</span>=root</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_PASS</span>=</div>
+                        </div>
+                    </div>
+                    <div class="terminal-window">
+                        <div class="terminal-header">
+                            <div class="terminal-button btn-close"></div>
+                            <div class="terminal-button btn-minimize"></div>
+                            <div class="terminal-button btn-maximize"></div>
+                            <div class="terminal-title">bash - run migrations</div>
+                        </div>
+                        <div class="terminal-body">
+                            <div class="terminal-line">
+                                <span class="prompt">$</span>
+                                <span class="command">olympian migrate</span>
+                            </div>
+                            <div class="terminal-line output">Migrating: create_users_table</div>
+                            <div class="terminal-line output-success">Migrated:  create_users_table</div>
+                            <div class="terminal-line output-success">✓ All migrations complete</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="postgres" class="tab-content">
+                    <div class="terminal-window">
+                        <div class="terminal-header">
+                            <div class="terminal-button btn-close"></div>
+                            <div class="terminal-button btn-minimize"></div>
+                            <div class="terminal-button btn-maximize"></div>
+                            <div class="terminal-title">.env</div>
+                        </div>
+                        <div class="terminal-body">
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_DRIVER</span>=postgres</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_HOST</span>=localhost</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_PORT</span>=5432</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_NAME</span>=mydb</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_USER</span>=postgres</div>
+                            <div class="terminal-line"><span style="color: var(--accent-purple)">DB_PASS</span>=secret</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="sqlite" class="tab-content">
+                    <div class="terminal-window">
+                        <div class="terminal-header">
+                            <div class="terminal-button btn-close"></div>
+                            <div class="terminal-button btn-minimize"></div>
+                            <div class="terminal-button btn-maximize"></div>
+                            <div class="terminal-title">bash - sqlite migrations</div>
+                        </div>
+                        <div class="terminal-body">
+                            <div class="terminal-line">
+                                <span class="prompt">$</span>
+                                <span class="command">olympian migrate --driver sqlite3 --dsn ./database.db</span>
+                            </div>
+                            <div class="terminal-line output-success">✓ Migrations complete</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3 class="feature-title">Fluent API</h3>
+                    <p>Chain methods elegantly with a Laravel-inspired syntax that feels natural and readable.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🗄️</div>
+                    <h3 class="feature-title">Multi-Database</h3>
+                    <p>PostgreSQL, MySQL, and SQLite support using standard database/sql package.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3 class="feature-title">Rollback Support</h3>
+                    <p>Full rollback functionality with batch tracking for safe schema changes.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚙️</div>
+                    <h3 class="feature-title">.env Configuration</h3>
+                    <p>Simple configuration with .env files - no complex connection strings needed.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔗</div>
+                    <h3 class="feature-title">Foreign Keys</h3>
+                    <p>Full foreign key support with cascading actions and relationship management.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">✅</div>
+                    <h3 class="feature-title">Type-Safe</h3>
+                    <p>Leverage Go's type system for compile-time safety and excellent IDE support.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Write Migrations</h2>
+            <p class="section-subtitle">Clean, expressive syntax for defining your schema</p>
+
+            <div class="code-block">
+                <pre><code class="language-go">package migrations
+
+import "github.com/ichtrojan/olympian"
+
+func init() {
+    olympian.RegisterMigration(olympian.Migration{
+        Name: "create_users_table",
+        Up: func() error {
+            return olympian.Table("users").Create(func() {
+                olympian.Uuid("id").Primary()
+                olympian.String("email").Unique()
+                olympian.String("password")
+                olympian.Boolean("verified").Default(false)
+                olympian.Timestamps()
+            })
+        },
+        Down: func() error {
+            return olympian.Table("users").Drop()
+        },
+    })
+}</code></pre>
+            </div>
+
+            <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Foreign Keys</h3>
+            <div class="code-block">
+                <pre><code class="language-go">olympian.Table("posts").Create(func() {
+    olympian.Uuid("id").Primary()
+    olympian.String("user_id")
+    olympian.String("title")
+    olympian.Text("content")
+    olympian.Foreign("user_id").
+        References("id").
+        On("users").
+        OnDelete("cascade")
+    olympian.Timestamps()
+})</code></pre>
+            </div>
+
+            <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Modify Tables</h3>
+            <div class="code-block">
+                <pre><code class="language-go">olympian.Table("users").Modify(func() {
+    olympian.Text("bio").Nullable()
+    olympian.String("avatar").Nullable()
+    olympian.Integer("age").After("name")
+})</code></pre>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">CLI Commands</h2>
+            <p class="section-subtitle">Powerful command-line interface for managing migrations</p>
+
+            <div class="api-section">
+                <div class="api-item">
+                    <div class="api-name">olympian migrate</div>
+                    <p>Run all pending migrations</p>
+                    <div class="terminal-window" style="margin-top: 1rem;">
+                        <div class="terminal-body">
+                            <div class="terminal-line">
+                                <span class="prompt">$</span>
+                                <span class="command">olympian migrate</span>
+                            </div>
+                            <div class="terminal-line output">Migrating: create_users_table</div>
+                            <div class="terminal-line output-success">Migrated:  create_users_table</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="api-item">
+                    <div class="api-name">olympian migrate create [name]</div>
+                    <p>Create a new migration file</p>
+                    <div class="terminal-window" style="margin-top: 1rem;">
+                        <div class="terminal-body">
+                            <div class="terminal-line">
+                                <span class="prompt">$</span>
+                                <span class="command">olympian migrate create create_posts_table</span>
+                            </div>
+                            <div class="terminal-line output-success">Created migration: ./migrations/1735689456_create_posts_table.go</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="api-item">
+                    <div class="api-name">olympian migrate rollback</div>
+                    <p>Rollback the last batch of migrations</p>
+                    <div class="terminal-window" style="margin-top: 1rem;">
+                        <div class="terminal-body">
+                            <div class="terminal-line">
+                                <span class="prompt">$</span>
+                                <span class="command">olympian migrate rollback</span>
+                            </div>
+                            <div class="terminal-line output">Rolling back: create_users_table</div>
+                            <div class="terminal-line output-success">Rolled back: create_users_table</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="api-item">
+                    <div class="api-name">olympian migrate status</div>
+                    <p>Show migration status</p>
+                    <div class="terminal-window" style="margin-top: 1rem;">
+                        <div class="terminal-body">
+                            <div class="terminal-line">
+                                <span class="prompt">$</span>
+                                <span class="command">olympian migrate status</span>
+                            </div>
+                            <div class="terminal-line output">------------------------------------------------------------</div>
+                            <div class="terminal-line output">| Status   | Migration                                     |</div>
+                            <div class="terminal-line output">------------------------------------------------------------</div>
+                            <div class="terminal-line output-success">| Ran      | create_users_table                            |</div>
+                            <div class="terminal-line output">| Pending  | create_posts_table                            |</div>
+                            <div class="terminal-line output">------------------------------------------------------------</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Column Types</h2>
+            <p class="section-subtitle">Rich set of column types for any schema</p>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="api-name">Uuid(name)</div>
+                    <p>UUID primary keys</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">String(name)</div>
+                    <p>VARCHAR(255)</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Text(name)</div>
+                    <p>Long text content</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Integer(name)</div>
+                    <p>Integer numbers</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Boolean(name)</div>
+                    <p>True/false values</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Timestamp(name)</div>
+                    <p>Date and time</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Json(name)</div>
+                    <p>JSON/JSONB data</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Decimal(name, p, s)</div>
+                    <p>Precise decimals</p>
+                </div>
+            </div>
+
+            <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Modifiers</h3>
+            <div class="code-block">
+                <pre><code class="language-go">olympian.String("email").Nullable()
+olympian.Uuid("id").Primary()
+olympian.String("username").Unique()
+olympian.Boolean("active").Default(true)
+olympian.Integer("age").After("name")
+olympian.Integer("id").AutoIncrement()</code></pre>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Why Olympian?</h2>
+            <div class="api-section">
+                <p style="font-size: 1.1rem; line-height: 1.8; color: var(--text-primary);">
+                    Olympian brings the elegance of Laravel's migration system to Go. If you've ever wished for
+                    a more expressive way to manage database schemas in Go, Olympian is your answer.
+                </p>
+                <ul style="margin: 2rem 0; font-size: 1.05rem; line-height: 2;">
+                    <li>✓ <strong style="color: var(--accent-green)">Familiar</strong> - Laravel-inspired syntax</li>
+                    <li>✓ <strong style="color: var(--accent-green)">Simple</strong> - Configure once with .env</li>
+                    <li>✓ <strong style="color: var(--accent-green)">Powerful</strong> - Full schema management</li>
+                    <li>✓ <strong style="color: var(--accent-green)">Safe</strong> - Automatic rollbacks</li>
+                    <li>✓ <strong style="color: var(--accent-green)">Fast</strong> - No ORM overhead</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2025 Olympian - MIT License</p>
+        <p style="color: var(--text-secondary); margin-top: 0.5rem;">Built with ❤️ for the Go community</p>
+        <div class="footer-links">
+            <a href="https://github.com/ichtrojan/olympian">GitHub</a>
+            <a href="https://github.com/ichtrojan/olympian/issues">Issues</a>
+            <a href="https://github.com/ichtrojan/olympian/discussions">Discussions</a>
+            <a href="https://pkg.go.dev/github.com/ichtrojan/olympian">Documentation</a>
+        </div>
+    </footer>
+
+    <script>
+        hljs.highlightAll();
+
+        function switchTab(event, tabName) {
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
+
+            tabs.forEach(tab => tab.classList.remove('active'));
+            contents.forEach(content => content.classList.remove('active'));
+
+            event.currentTarget.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+    </script>
+</body>
+</html>
