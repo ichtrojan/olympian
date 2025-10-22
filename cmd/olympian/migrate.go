@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/ichtrojan/olympian"
@@ -51,24 +52,7 @@ var migrateRollbackCmd = &cobra.Command{
 	Use:   "rollback",
 	Short: "Rollback the last batch of migrations",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		db, dialect, err := connectDB()
-		if err != nil {
-			return err
-		}
-		defer func() { _ = db.Close() }()
-
-		migrator := olympian.NewMigrator(db, dialect)
-		if err := migrator.Init(); err != nil {
-			return fmt.Errorf("failed to initialize migrator: %w", err)
-		}
-
-		migrations, err := loadMigrations()
-		if err != nil {
-			return err
-		}
-
-		steps := 1
-		return migrator.Rollback(migrations, steps)
+		return runWithGeneratedRunner("rollback")
 	},
 }
 
@@ -76,23 +60,7 @@ var migrateStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show migration status",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		db, dialect, err := connectDB()
-		if err != nil {
-			return err
-		}
-		defer func() { _ = db.Close() }()
-
-		migrator := olympian.NewMigrator(db, dialect)
-		if err := migrator.Init(); err != nil {
-			return fmt.Errorf("failed to initialize migrator: %w", err)
-		}
-
-		migrations, err := loadMigrations()
-		if err != nil {
-			return err
-		}
-
-		return migrator.Status(migrations)
+		return runWithGeneratedRunner("status")
 	},
 }
 
@@ -100,23 +68,7 @@ var migrateResetCmd = &cobra.Command{
 	Use:   "reset",
 	Short: "Rollback all migrations",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		db, dialect, err := connectDB()
-		if err != nil {
-			return err
-		}
-		defer func() { _ = db.Close() }()
-
-		migrator := olympian.NewMigrator(db, dialect)
-		if err := migrator.Init(); err != nil {
-			return fmt.Errorf("failed to initialize migrator: %w", err)
-		}
-
-		migrations, err := loadMigrations()
-		if err != nil {
-			return err
-		}
-
-		return migrator.Reset(migrations)
+		return runWithGeneratedRunner("reset")
 	},
 }
 
@@ -124,23 +76,7 @@ var migrateFreshCmd = &cobra.Command{
 	Use:   "fresh",
 	Short: "Drop all tables and re-run all migrations",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		db, dialect, err := connectDB()
-		if err != nil {
-			return err
-		}
-		defer func() { _ = db.Close() }()
-
-		migrator := olympian.NewMigrator(db, dialect)
-		if err := migrator.Init(); err != nil {
-			return fmt.Errorf("failed to initialize migrator: %w", err)
-		}
-
-		migrations, err := loadMigrations()
-		if err != nil {
-			return err
-		}
-
-		return migrator.Fresh(migrations)
+		return runWithGeneratedRunner("fresh")
 	},
 }
 
@@ -154,23 +90,156 @@ var migrateCreateCmd = &cobra.Command{
 }
 
 func runMigrate(cmd *cobra.Command, args []string) error {
-	db, dialect, err := connectDB()
+	return runWithGeneratedRunner("migrate")
+}
+
+func runWithGeneratedRunner(command string) error {
+	// Read go.mod to get module name
+	goModContent, err := os.ReadFile("go.mod")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read go.mod: %w (make sure you're in a Go project root)", err)
 	}
-	defer func() { _ = db.Close() }()
+
+	// Extract module name
+	var moduleName string
+	lines := string(goModContent)
+	for i := 0; i < len(lines); i++ {
+		if i+7 < len(lines) && lines[i:i+7] == "module " {
+			start := i + 7
+			end := start
+			for end < len(lines) && lines[end] != '\n' && lines[end] != '\r' {
+				end++
+			}
+			moduleName = lines[start:end]
+			break
+		}
+	}
+
+	if moduleName == "" {
+		return fmt.Errorf("could not find module name in go.mod")
+	}
+
+	// Create temporary directory
+	tmpDir := filepath.Join(os.TempDir(), "olympian-runner")
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Generate temporary main.go
+	mainContent := fmt.Sprintf(`package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/ichtrojan/olympian"
+	"github.com/joho/godotenv"
+
+	_ "%s/migrations"
+)
+
+func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found")
+	}
+
+	dbDriver := os.Getenv("DB_DRIVER")
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbName := os.Getenv("DB_NAME")
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASS")
+
+	if dbDriver == "" {
+		log.Fatal("DB_DRIVER not set in .env")
+	}
+
+	var dsn string
+	var dialect olympian.Dialect
+
+	switch dbDriver {
+	case "mysql":
+		dsn = fmt.Sprintf("%%s:%%s@tcp(%%s:%%s)/%%s?parseTime=true", dbUser, dbPass, dbHost, dbPort, dbName)
+		dialect = olympian.MySQL()
+	case "postgres":
+		dsn = fmt.Sprintf("host=%%s port=%%s user=%%s password=%%s dbname=%%s sslmode=disable", dbHost, dbPort, dbUser, dbPass, dbName)
+		dialect = olympian.Postgres()
+	case "sqlite3":
+		dsn = os.Getenv("DB_DSN")
+		if dsn == "" {
+			dsn = "./database.db"
+		}
+		dialect = olympian.SQLite()
+	default:
+		log.Fatalf("Unsupported database driver: %%s", dbDriver)
+	}
+
+	db, err := sql.Open(dbDriver, dsn)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %%v", err)
+	}
+	defer db.Close()
 
 	migrator := olympian.NewMigrator(db, dialect)
 	if err := migrator.Init(); err != nil {
-		return fmt.Errorf("failed to initialize migrator: %w", err)
+		log.Fatalf("Failed to initialize migrator: %%v", err)
 	}
 
-	migrations, err := loadMigrations()
+	migrations := olympian.GetMigrations()
+
+	switch "%s" {
+	case "migrate":
+		if err := migrator.Migrate(migrations); err != nil {
+			log.Fatalf("Failed to run migrations: %%v", err)
+		}
+	case "status":
+		if err := migrator.Status(migrations); err != nil {
+			log.Fatalf("Failed to get status: %%v", err)
+		}
+	case "rollback":
+		if err := migrator.Rollback(migrations, 1); err != nil {
+			log.Fatalf("Failed to rollback: %%v", err)
+		}
+		fmt.Println("Rollback completed successfully")
+	case "reset":
+		if err := migrator.Reset(migrations); err != nil {
+			log.Fatalf("Failed to reset: %%v", err)
+		}
+		fmt.Println("Reset completed successfully")
+	case "fresh":
+		if err := migrator.Fresh(migrations); err != nil {
+			log.Fatalf("Failed to fresh: %%v", err)
+		}
+		fmt.Println("Fresh migration completed successfully")
+	}
+}
+`, moduleName, command)
+
+	tmpMainPath := filepath.Join(tmpDir, "main.go")
+	if err := os.WriteFile(tmpMainPath, []byte(mainContent), 0644); err != nil {
+		return fmt.Errorf("failed to write temporary main.go: %w", err)
+	}
+
+	// Get current working directory
+	cwd, err := os.Getwd()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	return migrator.Migrate(migrations)
+	// Run go run with the temporary file
+	runCmd := exec.Command("go", "run", tmpMainPath)
+	runCmd.Dir = cwd
+	runCmd.Stdout = os.Stdout
+	runCmd.Stderr = os.Stderr
+	runCmd.Env = os.Environ()
+
+	return runCmd.Run()
 }
 
 func connectDB() (*sql.DB, olympian.Dialect, error) {
