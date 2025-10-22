@@ -74,7 +74,6 @@ func (tb *TableBuilder) Create(fn func()) error {
 	tb.operation = "create"
 	currentBuilder = tb
 	fn()
-	currentBuilder = nil
 
 	query := tb.dialect.BuildCreateTable(tb)
 	_, err := tb.db.Exec(query)
@@ -85,7 +84,6 @@ func (tb *TableBuilder) Modify(fn func()) error {
 	tb.operation = "modify"
 	currentBuilder = tb
 	fn()
-	currentBuilder = nil
 
 	sqls := tb.dialect.BuildModifyTable(tb)
 	for _, query := range sqls {
