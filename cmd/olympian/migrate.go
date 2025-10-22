@@ -241,7 +241,9 @@ func connectDB() (*sql.DB, olympian.Dialect, error) {
 }
 
 func loadMigrations() ([]olympian.Migration, error) {
-	return []olympian.Migration{}, nil
+	// This function is not used when running migrations via the CLI
+	// Instead, we use the generated runner approach
+	return olympian.GetMigrations(), nil
 }
 
 func createMigration(name string) error {
