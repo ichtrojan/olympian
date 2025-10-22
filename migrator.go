@@ -70,7 +70,7 @@ func (m *Migrator) GetExecutedMigrations() (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	executed := make(map[string]bool)
 	for rows.Next() {
@@ -104,7 +104,7 @@ func (m *Migrator) GetMigrationsFromBatch(batch int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var migrations []string
 	for rows.Next() {
@@ -282,7 +282,7 @@ func (m *Migrator) Fresh(migrations []Migration) error {
 			return fmt.Errorf("failed to get tables: %w", err)
 		}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tables []string
 	for rows.Next() {

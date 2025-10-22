@@ -55,7 +55,7 @@ var migrateRollbackCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		migrator := olympian.NewMigrator(db, dialect)
 		if err := migrator.Init(); err != nil {
@@ -80,7 +80,7 @@ var migrateStatusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		migrator := olympian.NewMigrator(db, dialect)
 		if err := migrator.Init(); err != nil {
@@ -104,7 +104,7 @@ var migrateResetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		migrator := olympian.NewMigrator(db, dialect)
 		if err := migrator.Init(); err != nil {
@@ -128,7 +128,7 @@ var migrateFreshCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		migrator := olympian.NewMigrator(db, dialect)
 		if err := migrator.Init(); err != nil {
@@ -158,7 +158,7 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := olympian.NewMigrator(db, dialect)
 	if err := migrator.Init(); err != nil {
