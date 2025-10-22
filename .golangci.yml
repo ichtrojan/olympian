@@ -1,0 +1,27 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - gofmt
+    - govet
+    - staticcheck
+    - ineffassign
+    - errcheck
+    - gosimple
+    - unused
+  disable:
+    - structcheck
+    - varcheck
+    - deadcode
+
+linters-settings:
+  govet:
+    check-shadowing: false
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
