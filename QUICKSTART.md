@@ -141,37 +141,45 @@ db, _ := sql.Open("mysql", "user:password@tcp(localhost:3306)/dbname")
 migrator := olympian.NewMigrator(db, olympian.MySQL())
 ```
 
-## Using the CLI
+## Using the CLI (Recommended!)
 
 Install the CLI tool:
 
 ```bash
-go install github.com/ichtrojan/olympian/cmd/olympian@latest
+go get github.com/ichtrojan/olympian/cmd/olympian@latest
 ```
 
-Create a migration:
+Set up your `.env` file:
 
-```bash
-olympian migrate create create_users_table
+```env
+DB_DRIVER=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=mydb
+DB_USER=root
+DB_PASS=
 ```
 
-Run migrations:
+Create and run migrations (auto-initializes on first use):
 
 ```bash
-olympian migrate --driver sqlite3 --dsn ./database.db
-```
+# Create migration with smart naming
+olympian migrate create users              # → creates create_users_table
 
-Rollback:
+# Run migrations (auto-initializes cmd/migrate/main.go)
+olympian migrate
 
-```bash
+# Rollback last batch
 olympian migrate rollback
-```
 
-Check status:
-
-```bash
+# Check status
 olympian migrate status
 ```
+
+**No manual setup required!** Olympian automatically:
+- Creates `cmd/migrate/main.go` on first use
+- Formats migration names (adds `create_` and `_table`)
+- Escapes MySQL reserved keywords
 
 ## Common Patterns
 

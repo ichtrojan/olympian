@@ -5,8 +5,34 @@ Complete guide for using the Olympian CLI tool.
 ## Installation
 
 ```bash
-go install github.com/ichtrojan/olympian/cmd/olympian@latest
+go get github.com/ichtrojan/olympian/cmd/olympian@latest
 ```
+
+## Quick Start (No Setup Required!)
+
+Olympian automatically initializes on first use. Just create your .env and start migrating:
+
+**Step 1:** Create a `.env` file in your project root:
+
+```env
+DB_DRIVER=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=bandit
+DB_USER=root
+DB_PASS=
+```
+
+**Step 2:** Create and run migrations:
+```bash
+# Create a migration (smart naming - automatically formats)
+olympian migrate create users
+
+# Run migrations (auto-initializes on first use)
+olympian migrate
+```
+
+That's it! Olympian automatically creates `cmd/migrate/main.go` on first use.
 
 ## Database Configuration
 
@@ -14,8 +40,7 @@ go install github.com/ichtrojan/olympian/cmd/olympian@latest
 
 This is the recommended approach for MySQL and PostgreSQL databases.
 
-**Step 1:** Create a `.env` file in your project root:
-
+**For MySQL:**
 ```env
 DB_DRIVER=mysql
 DB_HOST=127.0.0.1
@@ -35,12 +60,12 @@ DB_USER=postgres
 DB_PASS=secret
 ```
 
-**Step 2:** Run migrations:
+**Run migrations:**
 ```bash
 olympian migrate
 ```
 
-That's it! No flags needed.
+No flags needed!
 
 ### Option 2: Command Line Flags (SQLite)
 
@@ -65,20 +90,24 @@ olympian migrate --env=false --driver sqlite3 --dsn ./db.sqlite
 
 ## Creating Migrations
 
-### Basic Usage
+### Smart Migration Naming
 
-Create a new migration (goes to `./migrations` by default):
+Olympian automatically formats migration names to follow best practices. Just provide the table name:
 
 ```bash
-olympian migrate create create_users_table
+# All of these create the same properly formatted migration
+olympian migrate create users                # → create_users_table
+olympian migrate create create_users_table   # → create_users_table (no duplication)
+olympian migrate create create_users         # → create_users_table
+olympian migrate create users_table          # → create_users_table
 ```
 
-This creates: `./migrations/1234567890_create_users_table.go`
+Result: `./migrations/1234567890_create_users_table.go`
 
 ### Custom Migration Path
 
 ```bash
-olympian migrate create create_posts_table --path ./database/migrations
+olympian migrate create posts --path ./database/migrations
 ```
 
 ### Migration File Structure

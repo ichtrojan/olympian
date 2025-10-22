@@ -317,7 +317,22 @@ migrator.Fresh(migrations)  // Drop all tables and re-run migrations
 ### Installation
 
 ```bash
-go install github.com/ichtrojan/olympian/cmd/olympian@latest
+go get github.com/ichtrojan/olympian/cmd/olympian@latest
+```
+
+### Quick Start
+
+Olympian automatically initializes on first use - no setup required! Just start creating and running migrations:
+
+```bash
+# Create a migration (automatically adds create_ prefix and _table suffix)
+olympian migrate create users
+
+# Run migrations
+olympian migrate
+
+# Check status
+olympian migrate status
 ```
 
 ### Configuration
@@ -363,11 +378,13 @@ olympian migrate --driver sqlite3 --dsn ./database.db
 ### Commands
 
 ```bash
-# Run migrations (uses .env by default)
-olympian migrate
+# Create new migration (smart naming - adds create_ and _table automatically)
+olympian migrate create users              # Creates: create_users_table
+olympian migrate create posts              # Creates: create_posts_table
+olympian migrate create create_comments    # Creates: create_comments_table
 
-# Run migrations with SQLite
-olympian migrate --driver sqlite3 --dsn ./database.db
+# Run migrations (auto-initializes on first use)
+olympian migrate
 
 # Rollback last batch
 olympian migrate rollback
@@ -378,14 +395,23 @@ olympian migrate status
 # Reset all migrations
 olympian migrate reset
 
-# Fresh migration (drop all tables)
+# Fresh migration (drop all tables and re-run)
 olympian migrate fresh
 
-# Create new migration file (creates in ./migrations by default)
-olympian migrate create create_users_table
-
 # Create migration in custom path
-olympian migrate create create_posts_table --path ./database/migrations
+olympian migrate create posts --path ./database/migrations
+```
+
+### Auto-Initialization
+
+On first use, Olympian automatically creates `cmd/migrate/main.go` in your project. This file:
+- Imports your migrations package
+- Connects to your database using .env configuration
+- Handles all migration commands
+
+You can also manually initialize with:
+```bash
+olympian init
 ```
 
 ### CLI Flags
@@ -456,8 +482,19 @@ Each migration runs in a transaction. If a migration fails, it's automatically r
 
 Olympian uses a dialect system to generate database-specific SQL:
 - PostgreSQL: Uses `UUID`, `JSONB`, `SERIAL` types
-- MySQL: Uses `CHAR(36)` for UUIDs, `JSON`, `AUTO_INCREMENT`
+- MySQL: Uses `CHAR(36)` for UUIDs, `JSON`, `AUTO_INCREMENT`, automatically escapes reserved keywords with backticks
 - SQLite: Uses `TEXT` for most types, `AUTOINCREMENT`
+
+### MySQL Reserved Keywords
+
+Olympian automatically handles MySQL reserved keywords by wrapping them in backticks. You can safely use column names like:
+- `limit`, `order`, `group`, `key`, `index`, `type`, etc.
+
+Example:
+```go
+olympian.BigInteger("limit").Nullable()  // Generates: `limit` BIGINT
+olympian.String("type")                   // Generates: `type` VARCHAR(255)
+```
 
 ## Best Practices
 
