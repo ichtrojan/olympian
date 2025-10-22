@@ -11,3 +11,4 @@ olympian.db
 *.swo
 *~
 .env
+.idea/

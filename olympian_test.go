@@ -17,7 +17,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestTableCreation(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	SetDB(db, &SQLiteDialect{})
 
@@ -47,7 +47,7 @@ func TestTableCreation(t *testing.T) {
 
 func TestTableModification(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	SetDB(db, &SQLiteDialect{})
 
@@ -71,7 +71,7 @@ func TestTableModification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to query table info: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	columns := make(map[string]bool)
 	for rows.Next() {
@@ -95,7 +95,7 @@ func TestTableModification(t *testing.T) {
 
 func TestTableDrop(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	SetDB(db, &SQLiteDialect{})
 
@@ -121,7 +121,7 @@ func TestTableDrop(t *testing.T) {
 
 func TestForeignKeys(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	SetDB(db, &SQLiteDialect{})
 
@@ -155,7 +155,7 @@ func TestForeignKeys(t *testing.T) {
 
 func TestColumnTypes(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	SetDB(db, &SQLiteDialect{})
 
@@ -185,7 +185,7 @@ func TestColumnTypes(t *testing.T) {
 
 func TestNullableAndDefaults(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	SetDB(db, &SQLiteDialect{})
 
@@ -204,7 +204,7 @@ func TestNullableAndDefaults(t *testing.T) {
 
 func TestUniqueConstraint(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	SetDB(db, &SQLiteDialect{})
 

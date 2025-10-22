@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"log"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/ichtrojan/olympian"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {

@@ -7,9 +7,9 @@ import (
 )
 
 var (
-	globalDB     *sql.DB
+	globalDB      *sql.DB
 	globalDialect Dialect
-	mu           sync.RWMutex
+	mu            sync.RWMutex
 )
 
 func SetDB(db *sql.DB, dialect Dialect) {
@@ -32,40 +32,40 @@ type Migration struct {
 }
 
 type TableBuilder struct {
-	tableName  string
-	columns    []*Column
-	operation  string
-	dialect    Dialect
-	db         *sql.DB
+	tableName   string
+	columns     []*Column
+	operation   string
+	dialect     Dialect
+	db          *sql.DB
 	foreignKeys []*ForeignKey
 }
 
 type Column struct {
-	name         string
-	dataType     string
-	nullable     bool
-	primary      bool
-	unique       bool
-	defaultValue *string
-	afterColumn  *string
+	name          string
+	dataType      string
+	nullable      bool
+	primary       bool
+	unique        bool
+	defaultValue  *string
+	afterColumn   *string
 	autoIncrement bool
 }
 
 type ForeignKey struct {
-	column       string
-	refTable     string
-	refColumn    string
-	onDelete     string
-	onUpdate     string
+	column    string
+	refTable  string
+	refColumn string
+	onDelete  string
+	onUpdate  string
 }
 
 func Table(name string) *TableBuilder {
 	db, dialect := GetDB()
 	return &TableBuilder{
-		tableName: name,
-		columns:   make([]*Column, 0),
-		dialect:   dialect,
-		db:        db,
+		tableName:   name,
+		columns:     make([]*Column, 0),
+		dialect:     dialect,
+		db:          db,
 		foreignKeys: make([]*ForeignKey, 0),
 	}
 }

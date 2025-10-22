@@ -9,7 +9,7 @@ import (
 
 func TestMigratorInit(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := NewMigrator(db, &SQLiteDialect{})
 	err := migrator.Init()
@@ -30,7 +30,7 @@ func TestMigratorInit(t *testing.T) {
 
 func TestMigratorMigrate(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := NewMigrator(db, &SQLiteDialect{})
 	if err := migrator.Init(); err != nil {
@@ -72,7 +72,7 @@ func TestMigratorMigrate(t *testing.T) {
 
 func TestMigratorRollback(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := NewMigrator(db, &SQLiteDialect{})
 	if err := migrator.Init(); err != nil {
@@ -117,7 +117,7 @@ func TestMigratorRollback(t *testing.T) {
 
 func TestMigratorBatches(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := NewMigrator(db, &SQLiteDialect{})
 	if err := migrator.Init(); err != nil {
@@ -177,7 +177,7 @@ func TestMigratorBatches(t *testing.T) {
 
 func TestMigratorStatus(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := NewMigrator(db, &SQLiteDialect{})
 	if err := migrator.Init(); err != nil {
@@ -221,7 +221,7 @@ func TestMigratorStatus(t *testing.T) {
 
 func TestMigratorReset(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := NewMigrator(db, &SQLiteDialect{})
 	if err := migrator.Init(); err != nil {
@@ -274,7 +274,7 @@ func TestMigratorReset(t *testing.T) {
 
 func TestGetExecutedMigrations(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := NewMigrator(db, &SQLiteDialect{})
 	if err := migrator.Init(); err != nil {
@@ -297,7 +297,7 @@ func TestGetExecutedMigrations(t *testing.T) {
 
 func TestRecordAndRemoveMigration(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := NewMigrator(db, &SQLiteDialect{})
 	if err := migrator.Init(); err != nil {
