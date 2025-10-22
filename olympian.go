@@ -95,6 +95,16 @@ func (tb *TableBuilder) Modify(fn func()) error {
 }
 
 func (tb *TableBuilder) Drop() error {
+	// For MySQL, disable foreign key checks temporarily
+	if _, isMySQL := tb.dialect.(*MySQLDialect); isMySQL {
+		if _, err := tb.db.Exec("SET FOREIGN_KEY_CHECKS = 0"); err != nil {
+			return fmt.Errorf("failed to disable foreign key checks: %w", err)
+		}
+		defer func() {
+			_, _ = tb.db.Exec("SET FOREIGN_KEY_CHECKS = 1")
+		}()
+	}
+
 	query := tb.dialect.BuildDropTable(tb.tableName)
 	_, err := tb.db.Exec(query)
 	return err
