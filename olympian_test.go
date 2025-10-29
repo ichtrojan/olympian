@@ -294,3 +294,189 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestEnumColumn(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("users").Create(func() {
+		Uuid("id").Primary()
+		String("name")
+		Enum("status", "pending", "active", "inactive")
+		Enum("role", "admin", "user", "guest").Default("user")
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create table with enum columns: %v", err)
+	}
+
+	var tableName string
+	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").Scan(&tableName)
+	if err != nil {
+		t.Fatalf("Table was not created: %v", err)
+	}
+
+	// Test that enum constraint is enforced
+	_, err = db.Exec("INSERT INTO users (id, name, status, role) VALUES ('123', 'John', 'invalid_status', 'user')")
+	if err == nil {
+		t.Error("Expected enum constraint to reject invalid value")
+	}
+
+	// Test that valid values work
+	_, err = db.Exec("INSERT INTO users (id, name, status, role) VALUES ('456', 'Jane', 'active', 'admin')")
+	if err != nil {
+		t.Errorf("Failed to insert valid enum value: %v", err)
+	}
+}
+
+func TestEnumNullable(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("products").Create(func() {
+		Uuid("id").Primary()
+		String("name")
+		Enum("status", "draft", "published", "archived").Nullable()
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create table with nullable enum: %v", err)
+	}
+
+	// Test that NULL is allowed
+	_, err = db.Exec("INSERT INTO products (id, name, status) VALUES ('123', 'Product1', NULL)")
+	if err != nil {
+		t.Errorf("Failed to insert NULL into nullable enum: %v", err)
+	}
+}
+
+func TestEnumModifyTable(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("users").Create(func() {
+		Uuid("id").Primary()
+		String("name")
+	})
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	err = Table("users").Modify(func() {
+		Enum("status", "active", "inactive").Default("active")
+	})
+	if err != nil {
+		t.Fatalf("Failed to add enum column to existing table: %v", err)
+	}
+
+	rows, err := db.Query("PRAGMA table_info(users)")
+	if err != nil {
+		t.Fatalf("Failed to query table info: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	columns := make(map[string]bool)
+	for rows.Next() {
+		var cid int
+		var name, dataType string
+		var notNull, pk int
+		var dfltValue interface{}
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &dfltValue, &pk); err != nil {
+			t.Fatalf("Failed to scan row: %v", err)
+		}
+		columns[name] = true
+	}
+
+	if !columns["status"] {
+		t.Error("Enum column 'status' was not added to table")
+	}
+}
+
+func TestPostgresEnumDialect(t *testing.T) {
+	dialect := &PostgresDialect{}
+
+	tb := &TableBuilder{
+		tableName: "users",
+		columns: []*Column{
+			{name: "id", dataType: "uuid", primary: true},
+			{name: "status", dataType: "enum", enumValues: []string{"active", "inactive", "pending"}},
+		},
+	}
+
+	sql := dialect.BuildCreateTable(tb)
+	if sql == "" {
+		t.Error("PostgreSQL dialect failed to build CREATE TABLE with enum")
+	}
+
+	if !contains(sql, "VARCHAR(255)") {
+		t.Error("PostgreSQL dialect should use VARCHAR(255) for enum")
+	}
+
+	if !contains(sql, "CHECK") {
+		t.Error("PostgreSQL dialect should add CHECK constraint for enum")
+	}
+
+	if !contains(sql, "'active'") || !contains(sql, "'inactive'") || !contains(sql, "'pending'") {
+		t.Error("PostgreSQL enum CHECK constraint should include all enum values")
+	}
+}
+
+func TestMySQLEnumDialect(t *testing.T) {
+	dialect := &MySQLDialect{}
+
+	tb := &TableBuilder{
+		tableName: "users",
+		columns: []*Column{
+			{name: "id", dataType: "uuid", primary: true},
+			{name: "status", dataType: "enum", enumValues: []string{"active", "inactive"}},
+		},
+	}
+
+	sql := dialect.BuildCreateTable(tb)
+	if sql == "" {
+		t.Error("MySQL dialect failed to build CREATE TABLE with enum")
+	}
+
+	if !contains(sql, "ENUM(") {
+		t.Error("MySQL dialect should use native ENUM type")
+	}
+
+	if !contains(sql, "'active'") || !contains(sql, "'inactive'") {
+		t.Error("MySQL ENUM should include all enum values")
+	}
+}
+
+func TestSQLiteEnumDialect(t *testing.T) {
+	dialect := &SQLiteDialect{}
+
+	tb := &TableBuilder{
+		tableName: "users",
+		columns: []*Column{
+			{name: "id", dataType: "uuid", primary: true},
+			{name: "status", dataType: "enum", enumValues: []string{"active", "inactive"}},
+		},
+	}
+
+	sql := dialect.BuildCreateTable(tb)
+	if sql == "" {
+		t.Error("SQLite dialect failed to build CREATE TABLE with enum")
+	}
+
+	if !contains(sql, "TEXT") {
+		t.Error("SQLite dialect should use TEXT for enum")
+	}
+
+	if !contains(sql, "CHECK") {
+		t.Error("SQLite dialect should add CHECK constraint for enum")
+	}
+
+	if !contains(sql, "'active'") || !contains(sql, "'inactive'") {
+		t.Error("SQLite enum CHECK constraint should include all enum values")
+	}
+}
