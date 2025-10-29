@@ -49,6 +49,7 @@ type Column struct {
 	defaultValue  *string
 	afterColumn   *string
 	autoIncrement bool
+	enumValues    []string
 }
 
 type ForeignKey struct {
@@ -235,6 +236,19 @@ func Json(name string) *ColumnBuilder {
 		name:     name,
 		dataType: "json",
 		nullable: false,
+	}
+	if currentBuilder != nil {
+		currentBuilder.columns = append(currentBuilder.columns, col)
+	}
+	return &ColumnBuilder{column: col}
+}
+
+func Enum(name string, values ...string) *ColumnBuilder {
+	col := &Column{
+		name:       name,
+		dataType:   "enum",
+		nullable:   false,
+		enumValues: values,
 	}
 	if currentBuilder != nil {
 		currentBuilder.columns = append(currentBuilder.columns, col)

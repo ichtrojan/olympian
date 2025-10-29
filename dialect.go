@@ -62,6 +62,8 @@ func (d *PostgresDialect) GetDataType(col *Column) string {
 		return "DATE"
 	case "json":
 		return "JSONB"
+	case "enum":
+		return "VARCHAR(255)"
 	default:
 		if strings.HasPrefix(col.dataType, "decimal") {
 			return "DECIMAL" + strings.TrimPrefix(col.dataType, "decimal")
@@ -95,6 +97,17 @@ func (d *PostgresDialect) BuildCreateTable(tb *TableBuilder) string {
 			}
 		}
 		columnDefs = append(columnDefs, def)
+
+		// Add CHECK constraint for enum types
+		if col.dataType == "enum" && len(col.enumValues) > 0 {
+			var enumVals []string
+			for _, v := range col.enumValues {
+				enumVals = append(enumVals, fmt.Sprintf("'%s'", v))
+			}
+			checkConstraint := fmt.Sprintf("  CONSTRAINT chk_%s_%s CHECK (%s IN (%s))",
+				tb.tableName, col.name, col.name, strings.Join(enumVals, ", "))
+			columnDefs = append(columnDefs, checkConstraint)
+		}
 	}
 
 	for _, fk := range tb.foreignKeys {
@@ -133,6 +146,17 @@ func (d *PostgresDialect) BuildModifyTable(tb *TableBuilder) []string {
 			}
 		}
 		sqls = append(sqls, query)
+
+		// Add CHECK constraint for enum types
+		if col.dataType == "enum" && len(col.enumValues) > 0 {
+			var enumVals []string
+			for _, v := range col.enumValues {
+				enumVals = append(enumVals, fmt.Sprintf("'%s'", v))
+			}
+			checkConstraint := fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT chk_%s_%s CHECK (%s IN (%s))",
+				tb.tableName, tb.tableName, col.name, col.name, strings.Join(enumVals, ", "))
+			sqls = append(sqls, checkConstraint)
+		}
 	}
 	return sqls
 }
@@ -165,6 +189,15 @@ func (d *MySQLDialect) GetDataType(col *Column) string {
 		return "DATE"
 	case "json":
 		return "JSON"
+	case "enum":
+		if len(col.enumValues) > 0 {
+			var enumVals []string
+			for _, v := range col.enumValues {
+				enumVals = append(enumVals, fmt.Sprintf("'%s'", v))
+			}
+			return fmt.Sprintf("ENUM(%s)", strings.Join(enumVals, ", "))
+		}
+		return "VARCHAR(255)"
 	default:
 		if strings.HasPrefix(col.dataType, "decimal") {
 			return "DECIMAL" + strings.TrimPrefix(col.dataType, "decimal")
@@ -270,6 +303,8 @@ func (d *SQLiteDialect) GetDataType(col *Column) string {
 		return "TEXT"
 	case "json":
 		return "TEXT"
+	case "enum":
+		return "TEXT"
 	default:
 		if strings.HasPrefix(col.dataType, "decimal") {
 			return "REAL"
@@ -305,6 +340,16 @@ func (d *SQLiteDialect) BuildCreateTable(tb *TableBuilder) string {
 				def += fmt.Sprintf(" DEFAULT '%s'", *col.defaultValue)
 			}
 		}
+
+		// Add CHECK constraint for enum types inline
+		if col.dataType == "enum" && len(col.enumValues) > 0 {
+			var enumVals []string
+			for _, v := range col.enumValues {
+				enumVals = append(enumVals, fmt.Sprintf("'%s'", v))
+			}
+			def += fmt.Sprintf(" CHECK (%s IN (%s))", col.name, strings.Join(enumVals, ", "))
+		}
+
 		columnDefs = append(columnDefs, def)
 	}
 
@@ -343,6 +388,16 @@ func (d *SQLiteDialect) BuildModifyTable(tb *TableBuilder) []string {
 				query += fmt.Sprintf(" DEFAULT '%s'", *col.defaultValue)
 			}
 		}
+
+		// Add CHECK constraint for enum types inline
+		if col.dataType == "enum" && len(col.enumValues) > 0 {
+			var enumVals []string
+			for _, v := range col.enumValues {
+				enumVals = append(enumVals, fmt.Sprintf("'%s'", v))
+			}
+			query += fmt.Sprintf(" CHECK (%s IN (%s))", col.name, strings.Join(enumVals, ", "))
+		}
+
 		sqls = append(sqls, query)
 	}
 	return sqls
