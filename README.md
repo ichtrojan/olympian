@@ -9,7 +9,7 @@ A powerful, Laravel-inspired database migration system for Go. Olympian provides
 - **Migration Tracking**: Automatic tracking of executed migrations with batch support
 - **Rollback Support**: Roll back migrations individually or in batches
 - **Foreign Keys**: Full support for foreign key constraints with cascading actions
-- **Rich Column Types**: UUID, String, Text, Integer, Boolean, Decimal, Timestamp, Date, JSON, and more
+- **Rich Column Types**: UUID, String, Text, Integer, Boolean, Decimal, Timestamp, Date, JSON, Enum, and more
 - **Schema Modifications**: Add columns to existing tables with position control
 - **CLI Tool**: Command-line interface for running migrations
 - **Type-Safe**: Leverage Go's type system for compile-time safety
@@ -87,6 +87,7 @@ olympian.Decimal("price", 10, 2)        // DECIMAL(10,2)
 olympian.Timestamp("created_at")        // TIMESTAMP
 olympian.Date("birth_date")             // DATE
 olympian.Json("metadata")               // JSON/JSONB
+olympian.Enum("status", "pending", "active", "inactive")  // ENUM type
 ```
 
 ## Column Modifiers
@@ -113,6 +114,27 @@ olympian.Foreign("user_id").
     OnDelete("cascade").
     OnUpdate("restrict")
 ```
+
+## Enum Columns
+
+Define columns with restricted values using enum types:
+
+```go
+olympian.Table("orders").Create(func() {
+    olympian.Uuid("id").Primary()
+    olympian.Enum("status", "pending", "processing", "completed", "cancelled")
+    olympian.Enum("priority", "low", "medium", "high").Default("medium")
+    olympian.Enum("payment_method", "credit_card", "paypal", "bank_transfer").Nullable()
+})
+```
+
+### Database-Specific Implementation
+
+- **PostgreSQL**: Uses `VARCHAR(255)` with `CHECK` constraints to validate values
+- **MySQL**: Uses native `ENUM('value1', 'value2', ...)` type
+- **SQLite**: Uses `TEXT` with inline `CHECK` constraints
+
+Enum columns support all standard modifiers like `Nullable()`, `Default()`, and `Unique()`.
 
 ## Helper Functions
 
@@ -207,6 +229,7 @@ migrations := []olympian.Migration{
                 olympian.Uuid("id").Primary()
                 olympian.String("name")
                 olympian.String("industry").Nullable()
+                olympian.Enum("status", "active", "inactive", "suspended").Default("active")
                 olympian.Timestamps()
             })
         },
@@ -226,6 +249,7 @@ migrations := []olympian.Migration{
                 olympian.String("name")
                 olympian.String("email").Unique()
                 olympian.Boolean("verified").Default(false)
+                olympian.Enum("role", "admin", "user", "guest").Default("user")
                 olympian.Timestamps()
                 olympian.SoftDeletes()
             })
