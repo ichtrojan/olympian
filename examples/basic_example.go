@@ -40,6 +40,8 @@ func main() {
 			Up: func() error {
 				return olympian.Table("users").Create(func() {
 					olympian.Uuid("id").Primary()
+					// Foreign key can be defined using Foreign() method
+					olympian.String("business_id")
 					olympian.Foreign("business_id").
 						References("id").
 						On("businesses").

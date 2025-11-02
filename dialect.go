@@ -11,6 +11,7 @@ type Dialect interface {
 	BuildDropTable(tableName string) string
 	BuildDropColumn(tableName, columnName string) string
 	GetDataType(column *Column) string
+	BuildIndexStatements(tb *TableBuilder) []string
 }
 
 type PostgresDialect struct{}
@@ -110,6 +111,23 @@ func (d *PostgresDialect) BuildCreateTable(tb *TableBuilder) string {
 		}
 	}
 
+	// Add inline foreign keys defined on columns
+	for _, col := range tb.columns {
+		if col.refTable != "" && col.refColumn != "" {
+			fkDef := fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
+				tb.tableName, col.name, col.name, col.refTable, col.refColumn)
+
+			if col.onDelete != "" {
+				fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(col.onDelete))
+			}
+			if col.onUpdate != "" {
+				fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(col.onUpdate))
+			}
+			columnDefs = append(columnDefs, fkDef)
+		}
+	}
+
+	// Add foreign keys defined using Foreign()
 	for _, fk := range tb.foreignKeys {
 		fkDef := fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
 			tb.tableName, fk.column, fk.column, fk.refTable, fk.refColumn)
@@ -167,6 +185,22 @@ func (d *PostgresDialect) BuildDropTable(tableName string) string {
 
 func (d *PostgresDialect) BuildDropColumn(tableName, columnName string) string {
 	return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", tableName, columnName)
+}
+
+func (d *PostgresDialect) BuildIndexStatements(tb *TableBuilder) []string {
+	var sqls []string
+	for _, col := range tb.columns {
+		if col.hasIndex {
+			indexName := col.indexName
+			if indexName == "" {
+				// Auto-generate index name: idx_tablename_columnname
+				indexName = fmt.Sprintf("idx_%s_%s", tb.tableName, col.name)
+			}
+			sql := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (%s)", indexName, tb.tableName, col.name)
+			sqls = append(sqls, sql)
+		}
+	}
+	return sqls
 }
 
 func (d *MySQLDialect) GetDataType(col *Column) string {
@@ -236,6 +270,23 @@ func (d *MySQLDialect) BuildCreateTable(tb *TableBuilder) string {
 		columnDefs = append(columnDefs, def)
 	}
 
+	// Add inline foreign keys defined on columns
+	for _, col := range tb.columns {
+		if col.refTable != "" && col.refColumn != "" {
+			fkDef := fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
+				tb.tableName, col.name, col.name, col.refTable, col.refColumn)
+
+			if col.onDelete != "" {
+				fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(col.onDelete))
+			}
+			if col.onUpdate != "" {
+				fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(col.onUpdate))
+			}
+			columnDefs = append(columnDefs, fkDef)
+		}
+	}
+
+	// Add foreign keys defined using Foreign()
 	for _, fk := range tb.foreignKeys {
 		fkDef := fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
 			tb.tableName, fk.column, fk.column, fk.refTable, fk.refColumn)
@@ -285,6 +336,22 @@ func (d *MySQLDialect) BuildDropTable(tableName string) string {
 
 func (d *MySQLDialect) BuildDropColumn(tableName, columnName string) string {
 	return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", tableName, columnName)
+}
+
+func (d *MySQLDialect) BuildIndexStatements(tb *TableBuilder) []string {
+	var sqls []string
+	for _, col := range tb.columns {
+		if col.hasIndex {
+			indexName := col.indexName
+			if indexName == "" {
+				// Auto-generate index name: idx_tablename_columnname
+				indexName = fmt.Sprintf("idx_%s_%s", tb.tableName, col.name)
+			}
+			sql := fmt.Sprintf("CREATE INDEX %s ON %s (%s)", indexName, tb.tableName, col.name)
+			sqls = append(sqls, sql)
+		}
+	}
+	return sqls
 }
 
 func (d *SQLiteDialect) GetDataType(col *Column) string {
@@ -353,6 +420,23 @@ func (d *SQLiteDialect) BuildCreateTable(tb *TableBuilder) string {
 		columnDefs = append(columnDefs, def)
 	}
 
+	// Add inline foreign keys defined on columns
+	for _, col := range tb.columns {
+		if col.refTable != "" && col.refColumn != "" {
+			fkDef := fmt.Sprintf("  FOREIGN KEY (%s) REFERENCES %s(%s)",
+				col.name, col.refTable, col.refColumn)
+
+			if col.onDelete != "" {
+				fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(col.onDelete))
+			}
+			if col.onUpdate != "" {
+				fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(col.onUpdate))
+			}
+			columnDefs = append(columnDefs, fkDef)
+		}
+	}
+
+	// Add foreign keys defined using Foreign()
 	for _, fk := range tb.foreignKeys {
 		fkDef := fmt.Sprintf("  FOREIGN KEY (%s) REFERENCES %s(%s)",
 			fk.column, fk.refTable, fk.refColumn)
@@ -409,4 +493,20 @@ func (d *SQLiteDialect) BuildDropTable(tableName string) string {
 
 func (d *SQLiteDialect) BuildDropColumn(tableName, columnName string) string {
 	return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", tableName, columnName)
+}
+
+func (d *SQLiteDialect) BuildIndexStatements(tb *TableBuilder) []string {
+	var sqls []string
+	for _, col := range tb.columns {
+		if col.hasIndex {
+			indexName := col.indexName
+			if indexName == "" {
+				// Auto-generate index name: idx_tablename_columnname
+				indexName = fmt.Sprintf("idx_%s_%s", tb.tableName, col.name)
+			}
+			sql := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (%s)", indexName, tb.tableName, col.name)
+			sqls = append(sqls, sql)
+		}
+	}
+	return sqls
 }

@@ -153,6 +153,83 @@ func TestForeignKeys(t *testing.T) {
 	}
 }
 
+func TestInlineForeignKeys(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("transactions").Create(func() {
+		Uuid("id").Primary()
+		String("amount")
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transactions table: %v", err)
+	}
+
+	err = Table("cards").Create(func() {
+		Uuid("id").Primary()
+		String("number")
+	})
+	if err != nil {
+		t.Fatalf("Failed to create cards table: %v", err)
+	}
+
+	err = Table("card_transactions").Create(func() {
+		Uuid("id").Primary()
+		Uuid("transaction_id").References("id").On("transactions").OnDelete("cascade")
+		Uuid("card_id").References("id").On("cards").OnDelete("cascade")
+		String("status")
+		Timestamps()
+	})
+	if err != nil {
+		t.Fatalf("Failed to create card_transactions table with inline foreign keys: %v", err)
+	}
+
+	var tableName string
+	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='card_transactions'").Scan(&tableName)
+	if err != nil {
+		t.Fatalf("Table was not created: %v", err)
+	}
+}
+
+func TestIndexes(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("users").Create(func() {
+		Uuid("id").Primary()
+		String("email").Index()
+		String("username").IndexWithName("custom_username_idx")
+		String("name")
+		Timestamps()
+	})
+	if err != nil {
+		t.Fatalf("Failed to create table with indexes: %v", err)
+	}
+
+	// Check if auto-generated index exists
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_users_email'").Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to query for index: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected auto-generated index 'idx_users_email' to exist")
+	}
+
+	// Check if custom-named index exists
+	err = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='custom_username_idx'").Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to query for custom index: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected custom index 'custom_username_idx' to exist")
+	}
+}
+
 func TestColumnTypes(t *testing.T) {
 	db := setupTestDB(t)
 	defer func() { _ = db.Close() }()

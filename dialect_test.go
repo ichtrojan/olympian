@@ -205,6 +205,65 @@ func TestForeignKeySQL(t *testing.T) {
 	}
 }
 
+func TestInlineForeignKeySQL(t *testing.T) {
+	tests := []struct {
+		name    string
+		dialect Dialect
+	}{
+		{"PostgreSQL", &PostgresDialect{}},
+		{"MySQL", &MySQLDialect{}},
+		{"SQLite", &SQLiteDialect{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &TableBuilder{
+				tableName: "card_transactions",
+				columns: []*Column{
+					{name: "id", dataType: "uuid", primary: true},
+					{
+						name:      "transaction_id",
+						dataType:  "uuid",
+						refTable:  "transactions",
+						refColumn: "id",
+						onDelete:  "cascade",
+					},
+					{
+						name:      "card_id",
+						dataType:  "uuid",
+						refTable:  "cards",
+						refColumn: "id",
+						onDelete:  "cascade",
+						onUpdate:  "restrict",
+					},
+				},
+			}
+
+			sql := tt.dialect.BuildCreateTable(tb)
+
+			if !strings.Contains(sql, "FOREIGN KEY") {
+				t.Error("SQL should contain FOREIGN KEY")
+			}
+
+			if !strings.Contains(sql, "REFERENCES transactions(id)") {
+				t.Error("SQL should contain REFERENCES transactions(id)")
+			}
+
+			if !strings.Contains(sql, "REFERENCES cards(id)") {
+				t.Error("SQL should contain REFERENCES cards(id)")
+			}
+
+			if !strings.Contains(sql, "ON DELETE CASCADE") {
+				t.Error("SQL should contain ON DELETE CASCADE")
+			}
+
+			if !strings.Contains(sql, "ON UPDATE RESTRICT") {
+				t.Error("SQL should contain ON UPDATE RESTRICT")
+			}
+		})
+	}
+}
+
 func TestDefaultValuesSQL(t *testing.T) {
 	dialect := &PostgresDialect{}
 
@@ -297,5 +356,54 @@ func TestDropColumnSQL(t *testing.T) {
 		if !strings.Contains(sql, "ALTER TABLE users DROP COLUMN age") {
 			t.Errorf("Dialect %T should generate ALTER TABLE users DROP COLUMN age", dialect)
 		}
+	}
+}
+
+func TestIndexSQL(t *testing.T) {
+	tests := []struct {
+		name    string
+		dialect Dialect
+	}{
+		{"PostgreSQL", &PostgresDialect{}},
+		{"MySQL", &MySQLDialect{}},
+		{"SQLite", &SQLiteDialect{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &TableBuilder{
+				tableName: "users",
+				columns: []*Column{
+					{name: "id", dataType: "uuid", primary: true},
+					{name: "email", dataType: "string", hasIndex: true}, // Auto-generated index name
+					{name: "username", dataType: "string", hasIndex: true, indexName: "custom_idx"},
+					{name: "name", dataType: "string"},
+				},
+			}
+
+			sqls := tt.dialect.BuildIndexStatements(tb)
+
+			if len(sqls) != 2 {
+				t.Errorf("Expected 2 index statements, got %d", len(sqls))
+			}
+
+			// Check auto-generated index
+			if !strings.Contains(sqls[0], "idx_users_email") {
+				t.Error("Should contain auto-generated index name 'idx_users_email'")
+			}
+
+			if !strings.Contains(sqls[0], "CREATE INDEX") {
+				t.Error("Should contain CREATE INDEX")
+			}
+
+			// Check custom index name
+			if !strings.Contains(sqls[1], "custom_idx") {
+				t.Error("Should contain custom index name 'custom_idx'")
+			}
+
+			if !strings.Contains(sqls[1], "ON users (username)") {
+				t.Error("Should contain 'ON users (username)'")
+			}
+		})
 	}
 }

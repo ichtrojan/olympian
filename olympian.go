@@ -50,6 +50,14 @@ type Column struct {
 	afterColumn   *string
 	autoIncrement bool
 	enumValues    []string
+	// Foreign key fields
+	refTable  string
+	refColumn string
+	onDelete  string
+	onUpdate  string
+	// Index fields
+	hasIndex  bool
+	indexName string
 }
 
 type ForeignKey struct {
@@ -78,7 +86,19 @@ func (tb *TableBuilder) Create(fn func()) error {
 
 	query := tb.dialect.BuildCreateTable(tb)
 	_, err := tb.db.Exec(query)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Execute index creation statements
+	indexStmts := tb.dialect.BuildIndexStatements(tb)
+	for _, stmt := range indexStmts {
+		if _, err := tb.db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (tb *TableBuilder) Modify(fn func()) error {
@@ -293,6 +313,40 @@ func (cb *ColumnBuilder) After(columnName string) *ColumnBuilder {
 
 func (cb *ColumnBuilder) AutoIncrement() *ColumnBuilder {
 	cb.column.autoIncrement = true
+	return cb
+}
+
+// Foreign key methods for inline definitions
+func (cb *ColumnBuilder) References(column string) *ColumnBuilder {
+	cb.column.refColumn = column
+	return cb
+}
+
+func (cb *ColumnBuilder) On(table string) *ColumnBuilder {
+	cb.column.refTable = table
+	return cb
+}
+
+func (cb *ColumnBuilder) OnDelete(action string) *ColumnBuilder {
+	cb.column.onDelete = action
+	return cb
+}
+
+func (cb *ColumnBuilder) OnUpdate(action string) *ColumnBuilder {
+	cb.column.onUpdate = action
+	return cb
+}
+
+// Index methods for creating indexes on columns
+func (cb *ColumnBuilder) Index() *ColumnBuilder {
+	cb.column.hasIndex = true
+	// Index name will be auto-generated as idx_tablename_columnname
+	return cb
+}
+
+func (cb *ColumnBuilder) IndexWithName(name string) *ColumnBuilder {
+	cb.column.hasIndex = true
+	cb.column.indexName = name
 	return cb
 }
 
