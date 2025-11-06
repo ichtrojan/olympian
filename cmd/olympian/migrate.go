@@ -34,44 +34,50 @@ func init() {
 }
 
 var migrateCmd = &cobra.Command{
-	Use:   "migrate",
-	Short: "Run database migrations",
-	RunE:  runMigrate,
+	Use:          "migrate",
+	Short:        "Run database migrations",
+	RunE:         runMigrate,
+	SilenceUsage: true,
 }
 
 var migrateUpCmd = &cobra.Command{
-	Use:   "up",
-	Short: "Run all pending migrations",
-	RunE:  runMigrate,
+	Use:          "up",
+	Short:        "Run all pending migrations",
+	RunE:         runMigrate,
+	SilenceUsage: true,
 }
 
 var migrateRollbackCmd = &cobra.Command{
-	Use:   "rollback",
-	Short: "Rollback the last batch of migrations",
+	Use:          "rollback",
+	Short:        "Rollback the last batch of migrations",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runWithCmdMigrate("rollback")
 	},
 }
 
 var migrateStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show migration status",
+	Use:          "status",
+	Short:        "Show migration status",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runWithCmdMigrate("status")
 	},
 }
 
 var migrateResetCmd = &cobra.Command{
-	Use:   "reset",
-	Short: "Rollback all migrations",
+	Use:          "reset",
+	Short:        "Rollback all migrations",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runWithCmdMigrate("reset")
 	},
 }
 
 var migrateFreshCmd = &cobra.Command{
-	Use:   "fresh",
-	Short: "Drop all tables and re-run all migrations",
+	Use:          "fresh",
+	Short:        "Drop all tables and re-run all migrations",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runWithCmdMigrate("fresh")
 	},
