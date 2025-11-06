@@ -41,7 +41,7 @@ func TestMySQLDialectDataTypes(t *testing.T) {
 		column   *Column
 		expected string
 	}{
-		{&Column{dataType: "uuid"}, "CHAR(36)"},
+		{&Column{dataType: "uuid"}, "CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci"},
 		{&Column{dataType: "string"}, "VARCHAR(255)"},
 		{&Column{dataType: "text"}, "TEXT"},
 		{&Column{dataType: "integer"}, "INT"},

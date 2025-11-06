@@ -206,7 +206,7 @@ func (d *PostgresDialect) BuildIndexStatements(tb *TableBuilder) []string {
 func (d *MySQLDialect) GetDataType(col *Column) string {
 	switch col.dataType {
 	case "uuid":
-		return "CHAR(36)"
+		return "CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci"
 	case "string":
 		return "VARCHAR(255)"
 	case "text":
