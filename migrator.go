@@ -271,6 +271,16 @@ func (m *Migrator) Reset(migrations []Migration) error {
 func (m *Migrator) Fresh(migrations []Migration) error {
 	SetDB(m.db, m.dialect)
 
+	// For MySQL, disable foreign key checks before dropping tables
+	if _, isMySQL := m.dialect.(*MySQLDialect); isMySQL {
+		if _, err := m.db.Exec("SET FOREIGN_KEY_CHECKS = 0"); err != nil {
+			return fmt.Errorf("failed to disable foreign key checks: %w", err)
+		}
+		defer func() {
+			_, _ = m.db.Exec("SET FOREIGN_KEY_CHECKS = 1")
+		}()
+	}
+
 	rows, err := m.db.Query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
 	if err != nil {
 		if _, ok := m.dialect.(*PostgresDialect); ok {
