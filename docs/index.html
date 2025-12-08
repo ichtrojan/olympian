@@ -603,6 +603,11 @@
                     <h3 class="feature-title">Keyword Escaping</h3>
                     <p>Automatically handles MySQL reserved keywords like limit, order, and type.</p>
                 </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌱</div>
+                    <h3 class="feature-title">Database Seeders</h3>
+                    <p>Populate your database with test data using structs or maps with automatic snake_case conversion.</p>
+                </div>
             </div>
         </div>
 
@@ -777,6 +782,89 @@ olympian.String("username").Unique()
 olympian.Boolean("active").Default(true)
 olympian.Integer("age").After("name")
 olympian.Integer("id").AutoIncrement()</code></pre>
+            </div>
+        </div>
+
+        <div class="section" id="seeders">
+            <h2 class="section-title">Database Seeders</h2>
+            <p class="section-subtitle">Populate your database with test or initial data</p>
+
+            <div class="terminal-window">
+                <div class="terminal-header">
+                    <div class="terminal-button btn-close"></div>
+                    <div class="terminal-button btn-minimize"></div>
+                    <div class="terminal-button btn-maximize"></div>
+                    <div class="terminal-title">bash - create and run seeders</div>
+                </div>
+                <div class="terminal-body">
+                    <div class="terminal-line">
+                        <span class="prompt">$</span>
+                        <span class="command">olympian seed create user</span>
+                    </div>
+                    <div class="terminal-line output-success">
+                        <span>Created seeder: seeders/user_seeder.go</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="prompt">$</span>
+                        <span class="command">olympian seed run</span>
+                    </div>
+                    <div class="terminal-line output">Seeding: user</div>
+                    <div class="terminal-line output-success">Seeded:  user</div>
+                    <div class="terminal-line output-success">Database seeding completed successfully</div>
+                    <div class="terminal-line">
+                        <span class="prompt">$</span>
+                        <span class="command">olympian seed run user product</span>
+                    </div>
+                    <div class="terminal-line output-muted"># Run specific seeders by name</div>
+                </div>
+            </div>
+
+            <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Using Structs</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Field names are automatically converted to snake_case. time.Time is converted to timestamp format.</p>
+            <div class="code-block">
+                <pre><code class="language-go">type User struct {
+    ID        string
+    Name      string
+    UserAge   int       // becomes user_age
+    CreatedAt time.Time // converted to timestamp
+}
+
+olympian.Seed("users",
+    User{ID: "1", Name: "John", UserAge: 25, CreatedAt: time.Now()},
+    User{ID: "2", Name: "Jane", UserAge: 30, CreatedAt: time.Now()},
+)</code></pre>
+            </div>
+
+            <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Using Maps</h3>
+            <div class="code-block">
+                <pre><code class="language-go">olympian.Seed("users",
+    map[string]interface{}{
+        "id":    "uuid-1",
+        "name":  "John Doe",
+        "email": "john@example.com",
+    },
+)</code></pre>
+            </div>
+
+            <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Seeder File Structure</h3>
+            <div class="code-block">
+                <pre><code class="language-go">package seeders
+
+import "github.com/ichtrojan/olympian"
+
+func init() {
+    olympian.RegisterSeeder(olympian.Seeder{
+        Name: "user",
+        Run: func() error {
+            return olympian.Seed("users",
+                map[string]interface{}{
+                    "id":   "uuid-here",
+                    "name": "John Doe",
+                },
+            )
+        },
+    })
+}</code></pre>
             </div>
         </div>
 
