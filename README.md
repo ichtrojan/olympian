@@ -11,7 +11,8 @@ A powerful, Laravel-inspired database migration system for Go. Olympian provides
 - **Foreign Keys**: Full support for foreign key constraints with cascading actions
 - **Rich Column Types**: UUID, String, Text, Integer, Boolean, Decimal, Timestamp, Date, JSON, Enum, and more
 - **Schema Modifications**: Add columns to existing tables with position control
-- **CLI Tool**: Command-line interface for running migrations
+- **Database Seeders**: Populate your database with test or initial data using structs or maps
+- **CLI Tool**: Command-line interface for running migrations and seeders
 - **Type-Safe**: Leverage Go's type system for compile-time safety
 
 ## Installation
@@ -588,11 +589,103 @@ For more detailed documentation, visit our [documentation site](https://ichtroja
 - GitHub Issues: [Report bugs or request features](https://github.com/ichtrojan/olympian/issues)
 - Discussions: [Ask questions and share ideas](https://github.com/ichtrojan/olympian/discussions)
 
+## Database Seeders
+
+Olympian provides a powerful seeding system to populate your database with test or initial data.
+
+### Creating Seeders
+
+```bash
+olympian seed create user
+```
+
+This creates `seeders/user_seeder.go`:
+
+```go
+package seeders
+
+import "github.com/ichtrojan/olympian"
+
+func init() {
+    olympian.RegisterSeeder(olympian.Seeder{
+        Name: "user",
+        Run: func() error {
+            return olympian.Seed("users",
+                map[string]interface{}{
+                    "id":   "uuid-here",
+                    "name": "John Doe",
+                },
+            )
+        },
+    })
+}
+```
+
+### Running Seeders
+
+```bash
+# Run all seeders
+olympian seed run
+
+# Run specific seeder
+olympian seed run user
+
+# Run multiple specific seeders
+olympian seed run user product
+```
+
+### Using Structs
+
+Struct field names are automatically converted to snake_case:
+
+```go
+type User struct {
+    ID        string
+    Name      string
+    UserAge   int       // becomes user_age
+    CreatedAt time.Time // converted to timestamp
+}
+
+olympian.Seed("users",
+    User{ID: "1", Name: "John", UserAge: 25, CreatedAt: time.Now()},
+    User{ID: "2", Name: "Jane", UserAge: 30, CreatedAt: time.Now()},
+)
+```
+
+### Using Maps
+
+```go
+olympian.Seed("users",
+    map[string]interface{}{
+        "id":       "uuid-1",
+        "name":     "John Doe",
+        "email":    "john@example.com",
+        "user_age": 25,
+    },
+)
+```
+
+### Struct Tags
+
+Use `db` or `json` tags to customize column names:
+
+```go
+type User struct {
+    ID    string `db:"id"`
+    Name  string `json:"full_name"`
+    Email string // becomes "email" (snake_case)
+}
+```
+
+### Time Handling
+
+`time.Time` values are automatically converted to timestamp format (`2006-01-02 15:04:05`).
+
 ## Roadmap
 
 - [ ] Migration squashing
 - [ ] Schema dumping
-- [ ] Seed data support
+- [x] Seed data support
 - [ ] Migration dependencies
 - [ ] Dry-run mode
 - [ ] SQL Server support
