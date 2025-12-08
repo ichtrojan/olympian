@@ -636,7 +636,7 @@ olympian seed run user product
 
 ### Using Structs
 
-Struct field names are automatically converted to snake_case:
+Struct field names are automatically converted to snake_case. Pass a slice for multiple records:
 
 ```go
 type User struct {
@@ -646,10 +646,10 @@ type User struct {
     CreatedAt time.Time // converted to timestamp
 }
 
-olympian.Seed("users",
-    User{ID: "1", Name: "John", UserAge: 25, CreatedAt: time.Now()},
-    User{ID: "2", Name: "Jane", UserAge: 30, CreatedAt: time.Now()},
-)
+olympian.Seed("users", []User{
+    {ID: "1", Name: "John", UserAge: 25, CreatedAt: time.Now()},
+    {ID: "2", Name: "Jane", UserAge: 30, CreatedAt: time.Now()},
+})
 ```
 
 ### Using Maps

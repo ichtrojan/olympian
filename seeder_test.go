@@ -213,3 +213,36 @@ func TestRegisterSeeder(t *testing.T) {
 
 	seederRegistry = nil
 }
+
+func TestSeedRecordWithSlice(t *testing.T) {
+	type User struct {
+		ID   string
+		Name string
+	}
+
+	users := []User{
+		{ID: "1", Name: "John"},
+		{ID: "2", Name: "Jane"},
+		{ID: "3", Name: "Bob"},
+	}
+
+	v := reflect.ValueOf(users)
+	if v.Kind() != reflect.Slice {
+		t.Errorf("Expected slice kind, got %v", v.Kind())
+	}
+
+	if v.Len() != 3 {
+		t.Errorf("Expected slice length 3, got %d", v.Len())
+	}
+
+	dialect := &SQLiteDialect{}
+	for i := 0; i < v.Len(); i++ {
+		columns, values, _ := extractColumnsAndValues(v.Index(i).Interface(), dialect)
+		if len(columns) != 2 {
+			t.Errorf("Expected 2 columns for record %d, got %d", i, len(columns))
+		}
+		if len(values) != 2 {
+			t.Errorf("Expected 2 values for record %d, got %d", i, len(values))
+		}
+	}
+}

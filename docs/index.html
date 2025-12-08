@@ -820,7 +820,7 @@ olympian.Integer("id").AutoIncrement()</code></pre>
             </div>
 
             <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Using Structs</h3>
-            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Field names are automatically converted to snake_case. time.Time is converted to timestamp format.</p>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Field names are automatically converted to snake_case. time.Time is converted to timestamp format. Pass a slice for multiple records.</p>
             <div class="code-block">
                 <pre><code class="language-go">type User struct {
     ID        string
@@ -829,10 +829,10 @@ olympian.Integer("id").AutoIncrement()</code></pre>
     CreatedAt time.Time // converted to timestamp
 }
 
-olympian.Seed("users",
-    User{ID: "1", Name: "John", UserAge: 25, CreatedAt: time.Now()},
-    User{ID: "2", Name: "Jane", UserAge: 30, CreatedAt: time.Now()},
-)</code></pre>
+olympian.Seed("users", []User{
+    {ID: "1", Name: "John", UserAge: 25, CreatedAt: time.Now()},
+    {ID: "2", Name: "Jane", UserAge: 30, CreatedAt: time.Now()},
+})</code></pre>
             </div>
 
             <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Using Maps</h3>

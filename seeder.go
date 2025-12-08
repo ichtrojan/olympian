@@ -81,17 +81,42 @@ func Seed(tableName string, data ...interface{}) error {
 	}
 
 	for _, record := range data {
-		columns, values, placeholders := extractColumnsAndValues(record, dialect)
-		if len(columns) == 0 {
-			continue
-		}
-
-		query := buildInsertQuery(tableName, columns, placeholders, dialect)
-		if _, err := db.Exec(query, values...); err != nil {
-			return fmt.Errorf("failed to seed %s: %w", tableName, err)
+		if err := seedRecord(db, dialect, tableName, record); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func seedRecord(db *sql.DB, dialect Dialect, tableName string, record interface{}) error {
+	v := reflect.ValueOf(record)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	if v.Kind() == reflect.Slice {
+		for i := 0; i < v.Len(); i++ {
+			if err := seedSingleRecord(db, dialect, tableName, v.Index(i).Interface()); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	return seedSingleRecord(db, dialect, tableName, record)
+}
+
+func seedSingleRecord(db *sql.DB, dialect Dialect, tableName string, record interface{}) error {
+	columns, values, placeholders := extractColumnsAndValues(record, dialect)
+	if len(columns) == 0 {
+		return nil
+	}
+
+	query := buildInsertQuery(tableName, columns, placeholders, dialect)
+	if _, err := db.Exec(query, values...); err != nil {
+		return fmt.Errorf("failed to seed %s: %w", tableName, err)
+	}
 	return nil
 }
 
