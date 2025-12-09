@@ -180,7 +180,7 @@ func (d *PostgresDialect) BuildModifyTable(tb *TableBuilder) []string {
 }
 
 func (d *PostgresDialect) BuildDropTable(tableName string) string {
-	return fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName)
+	return fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", tableName)
 }
 
 func (d *PostgresDialect) BuildDropColumn(tableName, columnName string) string {

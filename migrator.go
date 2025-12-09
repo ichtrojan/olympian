@@ -318,7 +318,13 @@ func (m *Migrator) Fresh(migrations []Migration) error {
 	}
 
 	for _, table := range tables {
-		if _, err := m.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", table)); err != nil {
+		var dropQuery string
+		if _, ok := m.dialect.(*PostgresDialect); ok {
+			dropQuery = fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", table)
+		} else {
+			dropQuery = fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
+		}
+		if _, err := m.db.Exec(dropQuery); err != nil {
 			return fmt.Errorf("failed to drop table %s: %w", table, err)
 		}
 	}
