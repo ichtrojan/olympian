@@ -85,9 +85,7 @@ import (
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
-	}
+	_ = godotenv.Load()
 
 	dbDriver := os.Getenv("DB_DRIVER")
 	dbHost := os.Getenv("DB_HOST")
@@ -97,7 +95,7 @@ func main() {
 	dbPass := os.Getenv("DB_PASS")
 
 	if dbDriver == "" {
-		log.Fatal("DB_DRIVER not set in .env")
+		log.Fatal("DB_DRIVER environment variable not set")
 	}
 
 	var dsn string
