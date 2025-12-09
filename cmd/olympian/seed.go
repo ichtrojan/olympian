@@ -142,7 +142,7 @@ func main() {
 		dsn = fmt.Sprintf("%%s:%%s@tcp(%%s:%%s)/%%s?parseTime=true", dbUser, dbPass, dbHost, dbPort, dbName)
 		dialect = olympian.MySQL()
 	case "postgres":
-		dsn = fmt.Sprintf("host=%%s port=%%s user=%%s password=%%s dbname=%%s sslmode=disable", dbHost, dbPort, dbUser, dbPass, dbName)
+		dsn = fmt.Sprintf("postgres://%%s:%%s@%%s:%%s/%%s?sslmode=disable", dbUser, dbPass, dbHost, dbPort, dbName)
 		dialect = olympian.Postgres()
 	case "sqlite3":
 		dsn = os.Getenv("DB_DSN")
