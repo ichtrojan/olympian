@@ -18,20 +18,23 @@ type PostgresDialect struct{}
 type MySQLDialect struct{}
 type SQLiteDialect struct{}
 
-var mysqlReservedKeywords = map[string]bool{
+var reservedKeywords = map[string]bool{
 	"limit": true, "order": true, "group": true, "key": true, "index": true,
 	"type": true, "desc": true, "asc": true, "primary": true, "foreign": true,
 	"references": true, "constraint": true, "table": true, "column": true,
 	"select": true, "from": true, "where": true, "join": true, "on": true,
 	"and": true, "or": true, "not": true, "like": true, "in": true,
 	"between": true, "is": true, "null": true, "default": true, "unique": true,
-	"check": true, "cascade": true, "restrict": true, "set": true,
+	"check": true, "cascade": true, "restrict": true, "set": true, "user": true,
 }
 
 func escapeColumnName(name string, dialect Dialect) string {
-	if _, isMySQLDialect := dialect.(*MySQLDialect); isMySQLDialect {
-		if mysqlReservedKeywords[strings.ToLower(name)] {
+	if reservedKeywords[strings.ToLower(name)] {
+		switch dialect.(type) {
+		case *MySQLDialect:
 			return fmt.Sprintf("`%s`", name)
+		case *PostgresDialect:
+			return fmt.Sprintf(`"%s"`, name)
 		}
 	}
 	return name
@@ -79,7 +82,7 @@ func (d *PostgresDialect) BuildCreateTable(tb *TableBuilder) string {
 
 	var columnDefs []string
 	for _, col := range tb.columns {
-		def := fmt.Sprintf("  %s %s", col.name, d.GetDataType(col))
+		def := fmt.Sprintf("  %s %s", escapeColumnName(col.name, d), d.GetDataType(col))
 
 		if col.primary {
 			def += " PRIMARY KEY"
@@ -151,7 +154,7 @@ func (d *PostgresDialect) BuildModifyTable(tb *TableBuilder) []string {
 	var sqls []string
 	for _, col := range tb.columns {
 		query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
-			tb.tableName, col.name, d.GetDataType(col))
+			tb.tableName, escapeColumnName(col.name, d), d.GetDataType(col))
 
 		if !col.nullable {
 			query += " NOT NULL"
