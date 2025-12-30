@@ -12,6 +12,7 @@ type Dialect interface {
 	BuildDropColumn(tableName, columnName string) string
 	GetDataType(column *Column) string
 	BuildIndexStatements(tb *TableBuilder) []string
+	Placeholder(n int) string
 }
 
 type PostgresDialect struct{}
@@ -206,6 +207,10 @@ func (d *PostgresDialect) BuildIndexStatements(tb *TableBuilder) []string {
 	return sqls
 }
 
+func (d *PostgresDialect) Placeholder(n int) string {
+	return fmt.Sprintf("$%d", n)
+}
+
 func (d *MySQLDialect) GetDataType(col *Column) string {
 	switch col.dataType {
 	case "uuid":
@@ -355,6 +360,10 @@ func (d *MySQLDialect) BuildIndexStatements(tb *TableBuilder) []string {
 		}
 	}
 	return sqls
+}
+
+func (d *MySQLDialect) Placeholder(_ int) string {
+	return "?"
 }
 
 func (d *SQLiteDialect) GetDataType(col *Column) string {
@@ -512,4 +521,8 @@ func (d *SQLiteDialect) BuildIndexStatements(tb *TableBuilder) []string {
 		}
 	}
 	return sqls
+}
+
+func (d *SQLiteDialect) Placeholder(_ int) string {
+	return "?"
 }

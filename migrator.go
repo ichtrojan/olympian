@@ -84,34 +84,20 @@ func (m *Migrator) GetExecutedMigrations() (map[string]bool, error) {
 }
 
 func (m *Migrator) RecordMigration(name string, batch int) error {
-	var query string
-	if _, ok := m.dialect.(*PostgresDialect); ok {
-		query = "INSERT INTO olympian_migrations (migration, batch, executed_at) VALUES ($1, $2, $3)"
-	} else {
-		query = "INSERT INTO olympian_migrations (migration, batch, executed_at) VALUES (?, ?, ?)"
-	}
+	query := fmt.Sprintf("INSERT INTO olympian_migrations (migration, batch, executed_at) VALUES (%s, %s, %s)",
+		m.dialect.Placeholder(1), m.dialect.Placeholder(2), m.dialect.Placeholder(3))
 	_, err := m.db.Exec(query, name, batch, time.Now())
 	return err
 }
 
 func (m *Migrator) RemoveMigration(name string) error {
-	var query string
-	if _, ok := m.dialect.(*PostgresDialect); ok {
-		query = "DELETE FROM olympian_migrations WHERE migration = $1"
-	} else {
-		query = "DELETE FROM olympian_migrations WHERE migration = ?"
-	}
+	query := fmt.Sprintf("DELETE FROM olympian_migrations WHERE migration = %s", m.dialect.Placeholder(1))
 	_, err := m.db.Exec(query, name)
 	return err
 }
 
 func (m *Migrator) GetMigrationsFromBatch(batch int) ([]string, error) {
-	var query string
-	if _, ok := m.dialect.(*PostgresDialect); ok {
-		query = "SELECT migration FROM olympian_migrations WHERE batch = $1 ORDER BY id DESC"
-	} else {
-		query = "SELECT migration FROM olympian_migrations WHERE batch = ? ORDER BY id DESC"
-	}
+	query := fmt.Sprintf("SELECT migration FROM olympian_migrations WHERE batch = %s ORDER BY id DESC", m.dialect.Placeholder(1))
 	rows, err := m.db.Query(query, batch)
 	if err != nil {
 		return nil, err
