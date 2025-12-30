@@ -27,6 +27,7 @@ var reservedKeywords = map[string]bool{
 	"and": true, "or": true, "not": true, "like": true, "in": true,
 	"between": true, "is": true, "null": true, "default": true, "unique": true,
 	"check": true, "cascade": true, "restrict": true, "set": true, "user": true,
+	"end": true, "start": true, "begin": true, "commit": true, "rollback": true,
 }
 
 func escapeColumnName(name string, dialect Dialect) string {
