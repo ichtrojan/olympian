@@ -93,6 +93,21 @@ func DropIndex(indexName string) error {
 	return err
 }
 
+func DropForeignKey(tableName, constraintName string) error {
+	db, dialect := GetDB()
+
+	var query string
+	switch dialect.(type) {
+	case *MySQLDialect:
+		query = fmt.Sprintf("ALTER TABLE %s DROP FOREIGN KEY %s", tableName, constraintName)
+	default:
+		query = fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s", tableName, constraintName)
+	}
+
+	_, err := db.Exec(query)
+	return err
+}
+
 func joinColumns(columns []string) string {
 	result := ""
 	for i, col := range columns {
