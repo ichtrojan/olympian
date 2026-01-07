@@ -557,3 +557,253 @@ func TestSQLiteEnumDialect(t *testing.T) {
 		t.Error("SQLite enum CHECK constraint should include all enum values")
 	}
 }
+
+func TestCompositeUniqueConstraint(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("invoices").Create(func() {
+		Uuid("id").Primary()
+		String("business_id")
+		Integer("number")
+		Unique("business_id", "number")
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create table with composite unique constraint: %v", err)
+	}
+
+	// Insert first record
+	_, err = db.Exec("INSERT INTO invoices (id, business_id, number) VALUES ('1', 'biz1', 1)")
+	if err != nil {
+		t.Fatalf("Failed to insert first record: %v", err)
+	}
+
+	// Insert duplicate should fail
+	_, err = db.Exec("INSERT INTO invoices (id, business_id, number) VALUES ('2', 'biz1', 1)")
+	if err == nil {
+		t.Error("Expected composite unique constraint to reject duplicate")
+	}
+
+	// Same number with different business_id should work
+	_, err = db.Exec("INSERT INTO invoices (id, business_id, number) VALUES ('3', 'biz2', 1)")
+	if err != nil {
+		t.Errorf("Same number with different business_id should work: %v", err)
+	}
+}
+
+func TestCompositeUniqueConstraintWithCustomName(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("orders").Create(func() {
+		Uuid("id").Primary()
+		String("store_id")
+		String("order_number")
+		Unique("store_id", "order_number").Name("uq_store_order")
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create table with named composite unique constraint: %v", err)
+	}
+
+	// Verify the constraint works by testing it enforces uniqueness
+	_, err = db.Exec("INSERT INTO orders (id, store_id, order_number) VALUES ('1', 'store1', 'order1')")
+	if err != nil {
+		t.Fatalf("Failed to insert first record: %v", err)
+	}
+
+	// Insert duplicate should fail
+	_, err = db.Exec("INSERT INTO orders (id, store_id, order_number) VALUES ('2', 'store1', 'order1')")
+	if err == nil {
+		t.Error("Expected composite unique constraint to reject duplicate")
+	}
+
+	// Verify constraint name appears in SQL generation
+	dialect := &SQLiteDialect{}
+	tb := &TableBuilder{
+		tableName: "orders",
+		columns: []*Column{
+			{name: "id", dataType: "uuid", primary: true},
+			{name: "store_id", dataType: "string"},
+			{name: "order_number", dataType: "string"},
+		},
+		uniqueConstraints: []*UniqueConstraint{
+			{columns: []string{"store_id", "order_number"}, name: "uq_store_order"},
+		},
+	}
+	sql := dialect.BuildCreateTable(tb)
+	if !contains(sql, "CONSTRAINT uq_store_order UNIQUE") {
+		t.Errorf("Expected SQL to contain custom constraint name.\nGot: %s", sql)
+	}
+}
+
+func TestCompositeUniqueConstraintDialects(t *testing.T) {
+	tests := []struct {
+		name    string
+		dialect Dialect
+		check   string
+	}{
+		{"PostgreSQL", &PostgresDialect{}, "CONSTRAINT uq_invoices_business_id_number UNIQUE (business_id, number)"},
+		{"MySQL", &MySQLDialect{}, "CONSTRAINT uq_invoices_business_id_number UNIQUE (business_id, number)"},
+		{"SQLite", &SQLiteDialect{}, "CONSTRAINT uq_invoices_business_id_number UNIQUE (business_id, number)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &TableBuilder{
+				tableName: "invoices",
+				columns: []*Column{
+					{name: "id", dataType: "uuid", primary: true},
+					{name: "business_id", dataType: "string"},
+					{name: "number", dataType: "integer"},
+				},
+				uniqueConstraints: []*UniqueConstraint{
+					{columns: []string{"business_id", "number"}},
+				},
+			}
+
+			sql := tt.dialect.BuildCreateTable(tb)
+			if !contains(sql, tt.check) {
+				t.Errorf("%s dialect should generate composite unique constraint.\nExpected to contain: %s\nGot: %s", tt.name, tt.check, sql)
+			}
+		})
+	}
+}
+
+func TestIncrements(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("products").Create(func() {
+		Increments("id")
+		String("name")
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create table with Increments: %v", err)
+	}
+
+	// Insert without specifying id
+	result, err := db.Exec("INSERT INTO products (name) VALUES ('Product 1')")
+	if err != nil {
+		t.Fatalf("Failed to insert record: %v", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("Failed to get last insert id: %v", err)
+	}
+	if id != 1 {
+		t.Errorf("Expected auto-generated id to be 1, got %d", id)
+	}
+
+	// Insert another record
+	result, err = db.Exec("INSERT INTO products (name) VALUES ('Product 2')")
+	if err != nil {
+		t.Fatalf("Failed to insert second record: %v", err)
+	}
+
+	id, err = result.LastInsertId()
+	if err != nil {
+		t.Fatalf("Failed to get last insert id: %v", err)
+	}
+	if id != 2 {
+		t.Errorf("Expected auto-generated id to be 2, got %d", id)
+	}
+}
+
+func TestBigIncrements(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("events").Create(func() {
+		BigIncrements("id")
+		String("name")
+		Timestamps()
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create table with BigIncrements: %v", err)
+	}
+
+	// Insert without specifying id
+	result, err := db.Exec("INSERT INTO events (name) VALUES ('Event 1')")
+	if err != nil {
+		t.Fatalf("Failed to insert record: %v", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("Failed to get last insert id: %v", err)
+	}
+	if id != 1 {
+		t.Errorf("Expected auto-generated id to be 1, got %d", id)
+	}
+}
+
+func TestIncrementsDialects(t *testing.T) {
+	tests := []struct {
+		name    string
+		dialect Dialect
+		check   string
+	}{
+		{"PostgreSQL", &PostgresDialect{}, "SERIAL"},
+		{"MySQL", &MySQLDialect{}, "AUTO_INCREMENT"},
+		{"SQLite", &SQLiteDialect{}, "AUTOINCREMENT"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &TableBuilder{
+				tableName: "products",
+				columns: []*Column{
+					{name: "id", dataType: "integer", primary: true, autoIncrement: true},
+					{name: "name", dataType: "string"},
+				},
+			}
+
+			sql := tt.dialect.BuildCreateTable(tb)
+			if !contains(sql, tt.check) {
+				t.Errorf("%s dialect should generate %s.\nGot: %s", tt.name, tt.check, sql)
+			}
+		})
+	}
+}
+
+func TestBigIncrementsDialects(t *testing.T) {
+	tests := []struct {
+		name    string
+		dialect Dialect
+		check   string
+	}{
+		{"PostgreSQL", &PostgresDialect{}, "BIGSERIAL"},
+		{"MySQL", &MySQLDialect{}, "BIGINT"},
+		{"SQLite", &SQLiteDialect{}, "INTEGER"}, // SQLite uses INTEGER for all integers
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &TableBuilder{
+				tableName: "events",
+				columns: []*Column{
+					{name: "id", dataType: "bigint", primary: true, autoIncrement: true},
+					{name: "name", dataType: "string"},
+				},
+			}
+
+			sql := tt.dialect.BuildCreateTable(tb)
+			if !contains(sql, tt.check) {
+				t.Errorf("%s dialect should generate %s.\nGot: %s", tt.name, tt.check, sql)
+			}
+		})
+	}
+}

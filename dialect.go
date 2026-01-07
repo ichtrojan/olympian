@@ -50,6 +50,8 @@ func (d *PostgresDialect) GetDataType(col *Column) string {
 		return "VARCHAR(255)"
 	case "text":
 		return "TEXT"
+	case "tinyint":
+		return "SMALLINT"
 	case "integer":
 		if col.autoIncrement {
 			return "SERIAL"
@@ -146,6 +148,16 @@ func (d *PostgresDialect) BuildCreateTable(tb *TableBuilder) string {
 		columnDefs = append(columnDefs, fkDef)
 	}
 
+	// Add composite unique constraints
+	for _, uc := range tb.uniqueConstraints {
+		constraintName := uc.name
+		if constraintName == "" {
+			constraintName = fmt.Sprintf("uq_%s_%s", tb.tableName, strings.Join(uc.columns, "_"))
+		}
+		ucDef := fmt.Sprintf("  CONSTRAINT %s UNIQUE (%s)", constraintName, strings.Join(uc.columns, ", "))
+		columnDefs = append(columnDefs, ucDef)
+	}
+
 	parts = append(parts, strings.Join(columnDefs, ",\n"))
 	parts = append(parts, ");")
 
@@ -220,6 +232,8 @@ func (d *MySQLDialect) GetDataType(col *Column) string {
 		return "VARCHAR(255)"
 	case "text":
 		return "TEXT"
+	case "tinyint":
+		return "TINYINT"
 	case "integer":
 		return "INT"
 	case "bigint":
@@ -309,6 +323,16 @@ func (d *MySQLDialect) BuildCreateTable(tb *TableBuilder) string {
 		columnDefs = append(columnDefs, fkDef)
 	}
 
+	// Add composite unique constraints
+	for _, uc := range tb.uniqueConstraints {
+		constraintName := uc.name
+		if constraintName == "" {
+			constraintName = fmt.Sprintf("uq_%s_%s", tb.tableName, strings.Join(uc.columns, "_"))
+		}
+		ucDef := fmt.Sprintf("  CONSTRAINT %s UNIQUE (%s)", constraintName, strings.Join(uc.columns, ", "))
+		columnDefs = append(columnDefs, ucDef)
+	}
+
 	parts = append(parts, strings.Join(columnDefs, ",\n"))
 	parts = append(parts, ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
 
@@ -373,6 +397,8 @@ func (d *SQLiteDialect) GetDataType(col *Column) string {
 		return "TEXT"
 	case "text":
 		return "TEXT"
+	case "tinyint":
+		return "INTEGER"
 	case "integer":
 		return "INTEGER"
 	case "bigint":
@@ -461,6 +487,16 @@ func (d *SQLiteDialect) BuildCreateTable(tb *TableBuilder) string {
 			fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(fk.onUpdate))
 		}
 		columnDefs = append(columnDefs, fkDef)
+	}
+
+	// Add composite unique constraints
+	for _, uc := range tb.uniqueConstraints {
+		constraintName := uc.name
+		if constraintName == "" {
+			constraintName = fmt.Sprintf("uq_%s_%s", tb.tableName, strings.Join(uc.columns, "_"))
+		}
+		ucDef := fmt.Sprintf("  CONSTRAINT %s UNIQUE (%s)", constraintName, strings.Join(uc.columns, ", "))
+		columnDefs = append(columnDefs, ucDef)
 	}
 
 	parts = append(parts, strings.Join(columnDefs, ",\n"))

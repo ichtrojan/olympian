@@ -32,12 +32,13 @@ type Migration struct {
 }
 
 type TableBuilder struct {
-	tableName   string
-	columns     []*Column
-	operation   string
-	dialect     Dialect
-	db          *sql.DB
-	foreignKeys []*ForeignKey
+	tableName         string
+	columns           []*Column
+	operation         string
+	dialect           Dialect
+	db                *sql.DB
+	foreignKeys       []*ForeignKey
+	uniqueConstraints []*UniqueConstraint
 }
 
 type Column struct {
@@ -68,14 +69,20 @@ type ForeignKey struct {
 	onUpdate  string
 }
 
+type UniqueConstraint struct {
+	columns []string
+	name    string
+}
+
 func Table(name string) *TableBuilder {
 	db, dialect := GetDB()
 	return &TableBuilder{
-		tableName:   name,
-		columns:     make([]*Column, 0),
-		dialect:     dialect,
-		db:          db,
-		foreignKeys: make([]*ForeignKey, 0),
+		tableName:         name,
+		columns:           make([]*Column, 0),
+		dialect:           dialect,
+		db:                db,
+		foreignKeys:       make([]*ForeignKey, 0),
+		uniqueConstraints: make([]*UniqueConstraint, 0),
 	}
 }
 
@@ -179,6 +186,18 @@ func Text(name string) *ColumnBuilder {
 	return &ColumnBuilder{column: col}
 }
 
+func TinyInteger(name string) *ColumnBuilder {
+	col := &Column{
+		name:     name,
+		dataType: "tinyint",
+		nullable: false,
+	}
+	if currentBuilder != nil {
+		currentBuilder.columns = append(currentBuilder.columns, col)
+	}
+	return &ColumnBuilder{column: col}
+}
+
 func Integer(name string) *ColumnBuilder {
 	col := &Column{
 		name:     name,
@@ -274,6 +293,57 @@ func Enum(name string, values ...string) *ColumnBuilder {
 		currentBuilder.columns = append(currentBuilder.columns, col)
 	}
 	return &ColumnBuilder{column: col}
+}
+
+// Increments creates an auto-incrementing integer primary key column
+func Increments(name string) *ColumnBuilder {
+	col := &Column{
+		name:          name,
+		dataType:      "integer",
+		nullable:      false,
+		primary:       true,
+		autoIncrement: true,
+	}
+	if currentBuilder != nil {
+		currentBuilder.columns = append(currentBuilder.columns, col)
+	}
+	return &ColumnBuilder{column: col}
+}
+
+// BigIncrements creates an auto-incrementing bigint primary key column
+func BigIncrements(name string) *ColumnBuilder {
+	col := &Column{
+		name:          name,
+		dataType:      "bigint",
+		nullable:      false,
+		primary:       true,
+		autoIncrement: true,
+	}
+	if currentBuilder != nil {
+		currentBuilder.columns = append(currentBuilder.columns, col)
+	}
+	return &ColumnBuilder{column: col}
+}
+
+// Unique creates a composite unique constraint on multiple columns
+func Unique(columns ...string) *UniqueConstraintBuilder {
+	uc := &UniqueConstraint{
+		columns: columns,
+	}
+	if currentBuilder != nil {
+		currentBuilder.uniqueConstraints = append(currentBuilder.uniqueConstraints, uc)
+	}
+	return &UniqueConstraintBuilder{uc: uc}
+}
+
+type UniqueConstraintBuilder struct {
+	uc *UniqueConstraint
+}
+
+// Name sets a custom name for the unique constraint
+func (ucb *UniqueConstraintBuilder) Name(name string) *UniqueConstraintBuilder {
+	ucb.uc.name = name
+	return ucb
 }
 
 func Timestamps() {
