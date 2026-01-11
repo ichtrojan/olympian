@@ -59,6 +59,8 @@ type Column struct {
 	// Index fields
 	hasIndex  bool
 	indexName string
+	// Change existing column
+	isChange bool
 }
 
 type ForeignKey struct {
@@ -417,6 +419,13 @@ func (cb *ColumnBuilder) Index() *ColumnBuilder {
 func (cb *ColumnBuilder) IndexWithName(name string) *ColumnBuilder {
 	cb.column.hasIndex = true
 	cb.column.indexName = name
+	return cb
+}
+
+// Change marks this column definition as a modification to an existing column
+// Use this in a Modify() closure to alter an existing column's type or properties
+func (cb *ColumnBuilder) Change() *ColumnBuilder {
+	cb.column.isChange = true
 	return cb
 }
 

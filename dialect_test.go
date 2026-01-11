@@ -329,6 +329,86 @@ func TestMySQLAfterColumn(t *testing.T) {
 	}
 }
 
+func TestChangeColumnSQL(t *testing.T) {
+	defaultVal := "GBP"
+
+	t.Run("MySQL", func(t *testing.T) {
+		dialect := &MySQLDialect{}
+		tb := &TableBuilder{
+			tableName: "invoices",
+			columns: []*Column{
+				{name: "currency", dataType: "string", defaultValue: &defaultVal, isChange: true},
+			},
+		}
+
+		sqls := dialect.BuildModifyTable(tb)
+
+		if len(sqls) != 1 {
+			t.Errorf("Expected 1 SQL statement, got %d", len(sqls))
+		}
+
+		if !strings.Contains(sqls[0], "MODIFY COLUMN") {
+			t.Error("SQL should contain MODIFY COLUMN")
+		}
+
+		if !strings.Contains(sqls[0], "VARCHAR(255)") {
+			t.Error("SQL should contain VARCHAR(255)")
+		}
+
+		if !strings.Contains(sqls[0], "DEFAULT 'GBP'") {
+			t.Error("SQL should contain DEFAULT 'GBP'")
+		}
+	})
+
+	t.Run("PostgreSQL", func(t *testing.T) {
+		dialect := &PostgresDialect{}
+		tb := &TableBuilder{
+			tableName: "invoices",
+			columns: []*Column{
+				{name: "currency", dataType: "string", defaultValue: &defaultVal, isChange: true},
+			},
+		}
+
+		sqls := dialect.BuildModifyTable(tb)
+
+		if len(sqls) != 3 {
+			t.Errorf("Expected 3 SQL statements (type, nullability, default), got %d", len(sqls))
+		}
+
+		if !strings.Contains(sqls[0], "ALTER COLUMN currency TYPE VARCHAR(255)") {
+			t.Error("SQL should contain ALTER COLUMN currency TYPE VARCHAR(255)")
+		}
+
+		if !strings.Contains(sqls[1], "SET NOT NULL") {
+			t.Error("SQL should contain SET NOT NULL")
+		}
+
+		if !strings.Contains(sqls[2], "SET DEFAULT 'GBP'") {
+			t.Error("SQL should contain SET DEFAULT 'GBP'")
+		}
+	})
+
+	t.Run("SQLite", func(t *testing.T) {
+		dialect := &SQLiteDialect{}
+		tb := &TableBuilder{
+			tableName: "invoices",
+			columns: []*Column{
+				{name: "currency", dataType: "string", defaultValue: &defaultVal, isChange: true},
+			},
+		}
+
+		sqls := dialect.BuildModifyTable(tb)
+
+		if len(sqls) != 1 {
+			t.Errorf("Expected 1 SQL statement, got %d", len(sqls))
+		}
+
+		if !strings.Contains(sqls[0], "-- ERROR") {
+			t.Error("SQLite should return an error comment for MODIFY COLUMN")
+		}
+	})
+}
+
 func TestDropTableSQL(t *testing.T) {
 	dialects := []Dialect{
 		&PostgresDialect{},

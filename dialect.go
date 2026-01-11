@@ -168,30 +168,60 @@ func (d *PostgresDialect) BuildCreateTable(tb *TableBuilder) string {
 func (d *PostgresDialect) BuildModifyTable(tb *TableBuilder) []string {
 	var sqls []string
 	for _, col := range tb.columns {
-		query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
-			tb.tableName, escapeColumnName(col.name, d), d.GetDataType(col))
+		if col.isChange {
+			// PostgreSQL requires separate statements for type, nullability, and default
+			colName := escapeColumnName(col.name, d)
 
-		if !col.nullable {
-			query += " NOT NULL"
-		}
-		if col.defaultValue != nil {
-			if col.dataType == "boolean" || col.dataType == "integer" || col.dataType == "bigint" {
-				query += fmt.Sprintf(" DEFAULT %s", *col.defaultValue)
+			// Change the data type
+			sqls = append(sqls, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE %s",
+				tb.tableName, colName, d.GetDataType(col)))
+
+			// Change nullability
+			if col.nullable {
+				sqls = append(sqls, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL",
+					tb.tableName, colName))
 			} else {
-				query += fmt.Sprintf(" DEFAULT '%s'", *col.defaultValue)
+				sqls = append(sqls, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET NOT NULL",
+					tb.tableName, colName))
 			}
-		}
-		sqls = append(sqls, query)
 
-		// Add CHECK constraint for enum types
-		if col.dataType == "enum" && len(col.enumValues) > 0 {
-			var enumVals []string
-			for _, v := range col.enumValues {
-				enumVals = append(enumVals, fmt.Sprintf("'%s'", v))
+			// Change default
+			if col.defaultValue != nil {
+				var defaultVal string
+				if col.dataType == "boolean" || col.dataType == "integer" || col.dataType == "bigint" {
+					defaultVal = *col.defaultValue
+				} else {
+					defaultVal = fmt.Sprintf("'%s'", *col.defaultValue)
+				}
+				sqls = append(sqls, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s",
+					tb.tableName, colName, defaultVal))
 			}
-			checkConstraint := fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT chk_%s_%s CHECK (%s IN (%s))",
-				tb.tableName, tb.tableName, col.name, col.name, strings.Join(enumVals, ", "))
-			sqls = append(sqls, checkConstraint)
+		} else {
+			query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
+				tb.tableName, escapeColumnName(col.name, d), d.GetDataType(col))
+
+			if !col.nullable {
+				query += " NOT NULL"
+			}
+			if col.defaultValue != nil {
+				if col.dataType == "boolean" || col.dataType == "integer" || col.dataType == "bigint" {
+					query += fmt.Sprintf(" DEFAULT %s", *col.defaultValue)
+				} else {
+					query += fmt.Sprintf(" DEFAULT '%s'", *col.defaultValue)
+				}
+			}
+			sqls = append(sqls, query)
+
+			// Add CHECK constraint for enum types
+			if col.dataType == "enum" && len(col.enumValues) > 0 {
+				var enumVals []string
+				for _, v := range col.enumValues {
+					enumVals = append(enumVals, fmt.Sprintf("'%s'", v))
+				}
+				checkConstraint := fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT chk_%s_%s CHECK (%s IN (%s))",
+					tb.tableName, tb.tableName, col.name, col.name, strings.Join(enumVals, ", "))
+				sqls = append(sqls, checkConstraint)
+			}
 		}
 	}
 	return sqls
@@ -343,11 +373,19 @@ func (d *MySQLDialect) BuildCreateTable(tb *TableBuilder) string {
 func (d *MySQLDialect) BuildModifyTable(tb *TableBuilder) []string {
 	var sqls []string
 	for _, col := range tb.columns {
-		query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
-			tb.tableName, escapeColumnName(col.name, d), d.GetDataType(col))
+		var query string
+		if col.isChange {
+			query = fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s %s",
+				tb.tableName, escapeColumnName(col.name, d), d.GetDataType(col))
+		} else {
+			query = fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
+				tb.tableName, escapeColumnName(col.name, d), d.GetDataType(col))
+		}
 
 		if !col.nullable {
 			query += " NOT NULL"
+		} else if col.isChange {
+			query += " NULL"
 		}
 		if col.defaultValue != nil {
 			if col.dataType == "boolean" || col.dataType == "integer" || col.dataType == "bigint" {
@@ -509,6 +547,13 @@ func (d *SQLiteDialect) BuildCreateTable(tb *TableBuilder) string {
 func (d *SQLiteDialect) BuildModifyTable(tb *TableBuilder) []string {
 	var sqls []string
 	for _, col := range tb.columns {
+		if col.isChange {
+			// SQLite does not support modifying columns directly
+			// This requires table recreation which is not currently supported
+			sqls = append(sqls, fmt.Sprintf("-- ERROR: SQLite does not support MODIFY COLUMN for '%s'. Manual table recreation required.", col.name))
+			continue
+		}
+
 		query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
 			tb.tableName, col.name, d.GetDataType(col))
 
