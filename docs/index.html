@@ -710,6 +710,30 @@ func init() {
             <p style="color: var(--text-secondary); margin-top: 1rem; font-size: 0.9rem;">
                 <strong>Note:</strong> MySQL uses <span class="inline-code">MODIFY COLUMN</span>, PostgreSQL uses <span class="inline-code">ALTER COLUMN</span>. SQLite does not support column modifications.
             </p>
+
+            <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Raw SQL</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">For complex queries or database-specific operations, access the underlying connection:</p>
+            <div class="code-block">
+                <pre><code class="language-go">db, dialect := olympian.GetDB()
+
+// Run any raw SQL
+_, err := db.Exec("CREATE EXTENSION IF NOT EXISTS postgis")
+
+// Use in migrations
+{
+    Name: "add_postgis_extension",
+    Up: func() error {
+        db, _ := olympian.GetDB()
+        _, err := db.Exec("CREATE EXTENSION IF NOT EXISTS postgis")
+        return err
+    },
+    Down: func() error {
+        db, _ := olympian.GetDB()
+        _, err := db.Exec("DROP EXTENSION IF EXISTS postgis")
+        return err
+    },
+}</code></pre>
+            </div>
         </div>
 
         <div class="section">

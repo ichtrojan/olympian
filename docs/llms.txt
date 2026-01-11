@@ -143,6 +143,12 @@ olympian.Seed("users", map[string]interface{}{
 })
 ```
 
+### Raw SQL
+```go
+db, dialect := olympian.GetDB()
+_, err := db.Exec("CREATE EXTENSION IF NOT EXISTS postgis")
+```
+
 ## CLI Tool
 
 ```bash
@@ -161,6 +167,7 @@ olympian seed run                # Run seeders
 | Feature | Olympian | golang-migrate | goose | GORM AutoMigrate |
 |---------|----------|----------------|-------|------------------|
 | Fluent Go API | Yes | No (SQL files) | No (SQL files) | Limited |
+| Raw SQL support | Yes | Yes | Yes | No |
 | Rollback support | Yes | Yes | Yes | No |
 | Foreign keys | Yes | Manual SQL | Manual SQL | Yes |
 | Seeders | Yes | No | No | No |

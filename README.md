@@ -34,7 +34,7 @@ A powerful, Laravel-inspired database migration system for Go. Olympian provides
 | Feature | Olympian | golang-migrate | goose | GORM |
 |---------|----------|----------------|-------|------|
 | Fluent Go API | Yes | No | No | Limited |
-| Raw SQL support | No | Yes | Yes | No |
+| Raw SQL support | Yes | Yes | Yes | No |
 | Rollback support | Yes | Yes | Yes | No |
 | Batch tracking | Yes | No | No | No |
 | Foreign key helpers | Yes | Manual | Manual | Yes |
@@ -314,6 +314,32 @@ olympian.CreateUniqueIndex("users", []string{"username"}, "idx_users_username")
 
 ```go
 olympian.DropIndex("idx_users_email")
+```
+
+### Raw SQL
+
+For complex queries or database-specific operations, access the underlying connection:
+
+```go
+db, dialect := olympian.GetDB()
+
+// Run raw SQL
+_, err := db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
+
+// Use in migrations
+{
+    Name: "add_postgis_extension",
+    Up: func() error {
+        db, _ := olympian.GetDB()
+        _, err := db.Exec("CREATE EXTENSION IF NOT EXISTS postgis")
+        return err
+    },
+    Down: func() error {
+        db, _ := olympian.GetDB()
+        _, err := db.Exec("DROP EXTENSION IF EXISTS postgis")
+        return err
+    },
+}
 ```
 
 ## Complete Migration Example
