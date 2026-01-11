@@ -15,6 +15,32 @@ A powerful, Laravel-inspired database migration system for Go. Olympian provides
 - **CLI Tool**: Command-line interface for running migrations and seeders
 - **Type-Safe**: Leverage Go's type system for compile-time safety
 
+## When to Use Olympian
+
+**Choose Olympian if you:**
+- Want a fluent, expressive API for database migrations (similar to Laravel/Rails)
+- Prefer defining schemas in Go code rather than raw SQL files
+- Need a single library for migrations, schema changes, and seeders
+- Want built-in rollback support with batch tracking
+- Are building a new Go project and want a modern migration experience
+
+**Consider alternatives if you:**
+- Prefer writing raw SQL migrations → use [golang-migrate](https://github.com/golang-migrate/migrate) or [goose](https://github.com/pressly/goose)
+- Need an ORM with migrations → use [GORM](https://gorm.io) (though Olympian can complement GORM for complex migrations)
+- Only need simple schema syncing → GORM's AutoMigrate may suffice
+
+**Olympian vs Other Tools:**
+
+| Feature | Olympian | golang-migrate | goose | GORM |
+|---------|----------|----------------|-------|------|
+| Fluent Go API | Yes | No | No | Limited |
+| Raw SQL support | No | Yes | Yes | No |
+| Rollback support | Yes | Yes | Yes | No |
+| Batch tracking | Yes | No | No | No |
+| Foreign key helpers | Yes | Manual | Manual | Yes |
+| Database seeders | Yes | No | No | No |
+| Column modifiers | Yes | Manual | Manual | Tags |
+
 ## Installation
 
 ```bash
