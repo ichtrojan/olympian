@@ -81,6 +81,7 @@ Olympian supports a rich set of column types:
 olympian.Uuid("id")                    // UUID column
 olympian.String("name")                 // VARCHAR(255)
 olympian.Text("description")            // TEXT
+olympian.TinyInteger("status")          // TINYINT
 olympian.Integer("count")               // INTEGER
 olympian.BigInteger("big_count")        // BIGINT
 olympian.Boolean("active")              // BOOLEAN
@@ -89,6 +90,15 @@ olympian.Timestamp("created_at")        // TIMESTAMP
 olympian.Date("birth_date")             // DATE
 olympian.Json("metadata")               // JSON/JSONB
 olympian.Enum("status", "pending", "active", "inactive")  // ENUM type
+```
+
+### Auto-Incrementing Primary Keys
+
+For traditional auto-incrementing integer primary keys:
+
+```go
+olympian.Increments("id")              // INT AUTO_INCREMENT PRIMARY KEY
+olympian.BigIncrements("id")           // BIGINT AUTO_INCREMENT PRIMARY KEY
 ```
 
 ## Column Modifiers
@@ -102,11 +112,14 @@ olympian.String("username").Unique()                   // Unique constraint
 olympian.Boolean("active").Default(true)               // Default value
 olympian.Integer("age").After("name")                  // Column position (MySQL)
 olympian.Integer("id").AutoIncrement()                 // Auto increment
+olympian.String("status").Change()                     // Modify existing column
+olympian.String("email").Index()                       // Add index (auto-named)
+olympian.String("slug").IndexWithName("idx_slug")      // Add index with custom name
 ```
 
 ## Foreign Keys
 
-Define relationships between tables:
+Define relationships between tables using the `Foreign()` helper:
 
 ```go
 olympian.Foreign("user_id").
@@ -114,6 +127,42 @@ olympian.Foreign("user_id").
     On("users").
     OnDelete("cascade").
     OnUpdate("restrict")
+```
+
+### Inline Foreign Keys
+
+You can also define foreign keys directly on the column:
+
+```go
+olympian.Uuid("user_id").
+    References("id").
+    On("users").
+    OnDelete("cascade")
+```
+
+### Dropping Foreign Keys
+
+```go
+olympian.DropForeignKey("posts", "fk_posts_user_id")
+```
+
+## Composite Unique Constraints
+
+Define unique constraints across multiple columns:
+
+```go
+olympian.Table("subscriptions").Create(func() {
+    olympian.Uuid("id").Primary()
+    olympian.Uuid("user_id")
+    olympian.Uuid("plan_id")
+    olympian.Timestamps()
+
+    // Ensure a user can only have one subscription per plan
+    olympian.Unique("user_id", "plan_id")
+
+    // With a custom constraint name
+    olympian.Unique("user_id", "plan_id").Name("unique_user_plan")
+})
 ```
 
 ## Enum Columns
@@ -179,6 +228,28 @@ olympian.Table("users").Modify(func() {
     olympian.String("phone").Nullable()
 })
 ```
+
+### Changing Existing Columns
+
+Modify the type or properties of existing columns using the `Change()` modifier:
+
+```go
+olympian.Table("invoices").Modify(func() {
+    // Change from Enum to String
+    olympian.String("currency").Default("GBP").Change()
+
+    // Make a column nullable
+    olympian.Text("notes").Nullable().Change()
+
+    // Change column type
+    olympian.BigInteger("amount").Change()
+})
+```
+
+**Database Support:**
+- **MySQL**: Uses `MODIFY COLUMN` syntax
+- **PostgreSQL**: Uses separate `ALTER COLUMN` statements for type, nullability, and default
+- **SQLite**: Not supported (SQLite requires table recreation for column modifications)
 
 ### Dropping Tables
 
@@ -686,6 +757,7 @@ type User struct {
 - [ ] Migration squashing
 - [ ] Schema dumping
 - [x] Seed data support
+- [x] Column modifications (Change)
 - [ ] Migration dependencies
 - [ ] Dry-run mode
 - [ ] SQL Server support
