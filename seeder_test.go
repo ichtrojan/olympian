@@ -56,8 +56,8 @@ func TestConvertValue(t *testing.T) {
 
 func TestExtractColumnsAndValuesFromStruct(t *testing.T) {
 	type User struct {
-		ID        string    `db:"id"`
-		Name      string    `json:"name"`
+		ID        string `db:"id"`
+		Name      string `json:"name"`
 		Email     string
 		UserAge   int
 		CreatedAt time.Time

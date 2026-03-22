@@ -224,8 +224,6 @@ func init() {
 
 func formatSeederName(name string) string {
 	name = strings.ToLower(name)
-	if strings.HasSuffix(name, "_seeder") {
-		name = name[:len(name)-7]
-	}
+	name = strings.TrimSuffix(name, "_seeder")
 	return name
 }
