@@ -164,6 +164,18 @@ func Uuid(name string) *ColumnBuilder {
 	return &ColumnBuilder{column: col}
 }
 
+func Ulid(name string) *ColumnBuilder {
+	col := &Column{
+		name:     name,
+		dataType: "ulid",
+		nullable: false,
+	}
+	if currentBuilder != nil {
+		currentBuilder.columns = append(currentBuilder.columns, col)
+	}
+	return &ColumnBuilder{column: col}
+}
+
 func String(name string) *ColumnBuilder {
 	col := &Column{
 		name:     name,
