@@ -64,11 +64,11 @@ type Column struct {
 }
 
 type ForeignKey struct {
-	column    string
-	refTable  string
-	refColumn string
-	onDelete  string
-	onUpdate  string
+	columns    []string
+	refTable   string
+	refColumns []string
+	onDelete   string
+	onUpdate   string
 }
 
 type UniqueConstraint struct {
@@ -121,7 +121,42 @@ func (tb *TableBuilder) Modify(fn func()) error {
 			return err
 		}
 	}
+
+	// Execute index creation statements
+	indexStmts := tb.dialect.BuildIndexStatements(tb)
+	for _, stmt := range indexStmts {
+		if _, err := tb.db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// PreviewCreate returns the SQL statements that would be executed by Create(),
+// without actually executing them. Useful for dry-run and debugging.
+func (tb *TableBuilder) PreviewCreate(fn func()) []string {
+	tb.operation = "create"
+	currentBuilder = tb
+	fn()
+
+	var sqls []string
+	sqls = append(sqls, tb.dialect.BuildCreateTable(tb))
+	sqls = append(sqls, tb.dialect.BuildIndexStatements(tb)...)
+	return sqls
+}
+
+// PreviewModify returns the SQL statements that would be executed by Modify(),
+// without actually executing them. Useful for dry-run and debugging.
+func (tb *TableBuilder) PreviewModify(fn func()) []string {
+	tb.operation = "modify"
+	currentBuilder = tb
+	fn()
+
+	var sqls []string
+	sqls = append(sqls, tb.dialect.BuildModifyTable(tb)...)
+	sqls = append(sqls, tb.dialect.BuildIndexStatements(tb)...)
+	return sqls
 }
 
 func (tb *TableBuilder) Drop() error {
@@ -433,9 +468,12 @@ type ForeignKeyBuilder struct {
 	fk *ForeignKey
 }
 
-func Foreign(columnName string) *ForeignKeyBuilder {
+// Foreign creates a foreign key constraint on one or more columns.
+// For single-column FKs: Foreign("business_id").References("id").On("businesses")
+// For composite FKs: Foreign("user_id", "tenant_id").References("id", "tenant_id").On("users")
+func Foreign(columnNames ...string) *ForeignKeyBuilder {
 	fk := &ForeignKey{
-		column: columnName,
+		columns: columnNames,
 	}
 	if currentBuilder != nil {
 		currentBuilder.foreignKeys = append(currentBuilder.foreignKeys, fk)
@@ -443,8 +481,10 @@ func Foreign(columnName string) *ForeignKeyBuilder {
 	return &ForeignKeyBuilder{fk: fk}
 }
 
-func (fkb *ForeignKeyBuilder) References(column string) *ForeignKeyBuilder {
-	fkb.fk.refColumn = column
+// References specifies the referenced column(s) in the foreign table.
+// For composite FKs, pass multiple column names matching the order of Foreign() columns.
+func (fkb *ForeignKeyBuilder) References(columns ...string) *ForeignKeyBuilder {
+	fkb.fk.refColumns = columns
 	return fkb
 }
 

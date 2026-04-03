@@ -20,16 +20,63 @@ type MySQLDialect struct{}
 type SQLiteDialect struct{}
 
 var reservedKeywords = map[string]bool{
-	"limit": true, "order": true, "group": true, "key": true, "index": true,
-	"type": true, "desc": true, "asc": true, "primary": true, "foreign": true,
-	"references": true, "constraint": true, "table": true, "column": true,
+	// SQL clauses and DML
 	"select": true, "from": true, "where": true, "join": true, "on": true,
+	"insert": true, "update": true, "delete": true, "into": true, "create": true,
+	"alter": true, "drop": true, "truncate": true, "replace": true,
+
+	// Logical operators
 	"and": true, "or": true, "not": true, "like": true, "in": true,
-	"between": true, "is": true, "null": true, "default": true, "unique": true,
-	"check": true, "cascade": true, "restrict": true, "set": true, "user": true,
-	"end": true, "start": true, "begin": true, "commit": true, "rollback": true,
-	"interval": true, "status": true, "name": true, "value": true, "values": true,
-	"usage": true,
+	"between": true, "is": true, "exists": true, "having": true,
+
+	// Sorting and grouping
+	"order": true, "group": true, "by": true, "asc": true, "desc": true,
+	"limit": true, "offset": true, "distinct": true,
+
+	// Joins
+	"inner": true, "outer": true, "left": true, "right": true, "cross": true,
+	"natural": true, "using": true,
+
+	// Set operations
+	"union": true, "intersect": true, "except": true, "all": true,
+
+	// Conditional
+	"case": true, "when": true, "then": true, "else": true,
+
+	// Constraints and keys
+	"primary": true, "foreign": true, "key": true, "index": true,
+	"references": true, "constraint": true, "unique": true, "check": true,
+	"default": true, "null": true,
+
+	// Table/column keywords
+	"table": true, "column": true, "add": true, "modify": true,
+
+	// Referential actions
+	"cascade": true, "restrict": true, "set": true,
+
+	// Transaction keywords
+	"begin": true, "commit": true, "rollback": true, "start": true, "end": true,
+
+	// Window functions and analytics
+	"window": true, "over": true, "partition": true, "row": true, "rows": true,
+	"range": true, "rank": true, "filter": true, "recursive": true, "with": true,
+
+	// Types and casting
+	"cast": true, "interval": true, "some": true, "any": true,
+
+	// Common column names that are reserved
+	"type": true, "user": true, "role": true, "status": true, "name": true,
+	"value": true, "values": true, "usage": true, "action": true, "comment": true,
+	"date": true, "time": true, "timestamp": true, "year": true, "month": true,
+	"day": true, "hour": true, "minute": true, "second": true, "position": true,
+	"level": true, "mode": true, "system": true, "session": true, "language": true,
+	"domain": true, "scope": true, "state": true, "zone": true, "data": true,
+	"number": true, "result": true, "size": true, "source": true, "work": true,
+	"read": true, "write": true, "input": true, "output": true, "option": true,
+	"open": true, "close": true, "release": true, "call": true, "signal": true,
+
+	// Misc reserved
+	"collate": true, "escape": true, "grant": true, "revoke": true,
 }
 
 func escapeColumnName(name string, dialect Dialect) string {
@@ -37,11 +84,99 @@ func escapeColumnName(name string, dialect Dialect) string {
 		switch dialect.(type) {
 		case *MySQLDialect:
 			return fmt.Sprintf("`%s`", name)
-		case *PostgresDialect:
+		case *PostgresDialect, *SQLiteDialect:
 			return fmt.Sprintf(`"%s"`, name)
 		}
 	}
 	return name
+}
+
+func escapeTableName(name string, dialect Dialect) string {
+	if reservedKeywords[strings.ToLower(name)] {
+		switch dialect.(type) {
+		case *MySQLDialect:
+			return fmt.Sprintf("`%s`", name)
+		case *PostgresDialect, *SQLiteDialect:
+			return fmt.Sprintf(`"%s"`, name)
+		}
+	}
+	return name
+}
+
+// buildFKConstraint generates a foreign key constraint clause for CREATE TABLE statements.
+func buildFKConstraint(tableName string, col *Column, dialect Dialect, named bool) string {
+	var fkDef string
+	if named {
+		fkDef = fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
+			tableName, col.name, escapeColumnName(col.name, dialect),
+			escapeTableName(col.refTable, dialect), escapeColumnName(col.refColumn, dialect))
+	} else {
+		// SQLite style — no constraint name
+		fkDef = fmt.Sprintf("  FOREIGN KEY (%s) REFERENCES %s(%s)",
+			col.name, col.refTable, col.refColumn)
+	}
+	if col.onDelete != "" {
+		fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(col.onDelete))
+	}
+	if col.onUpdate != "" {
+		fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(col.onUpdate))
+	}
+	return fkDef
+}
+
+// buildFKConstraintFromFK generates a foreign key constraint clause from a ForeignKey struct.
+func buildFKConstraintFromFK(tableName string, fk *ForeignKey, dialect Dialect, named bool) string {
+	cols := strings.Join(fk.columns, ", ")
+	refCols := strings.Join(fk.refColumns, ", ")
+
+	var fkDef string
+	if named {
+		fkDef = fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
+			tableName, fk.columns[0], cols,
+			escapeTableName(fk.refTable, dialect), refCols)
+	} else {
+		fkDef = fmt.Sprintf("  FOREIGN KEY (%s) REFERENCES %s(%s)",
+			cols, fk.refTable, refCols)
+	}
+	if fk.onDelete != "" {
+		fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(fk.onDelete))
+	}
+	if fk.onUpdate != "" {
+		fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(fk.onUpdate))
+	}
+	return fkDef
+}
+
+// buildAlterAddFK generates an ALTER TABLE ADD CONSTRAINT statement for a foreign key.
+func buildAlterAddFK(tableName string, col *Column, dialect Dialect) string {
+	fkSQL := fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
+		escapeTableName(tableName, dialect), tableName, col.name,
+		escapeColumnName(col.name, dialect),
+		escapeTableName(col.refTable, dialect), escapeColumnName(col.refColumn, dialect))
+	if col.onDelete != "" {
+		fkSQL += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(col.onDelete))
+	}
+	if col.onUpdate != "" {
+		fkSQL += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(col.onUpdate))
+	}
+	return fkSQL
+}
+
+// buildAlterAddFKFromFK generates an ALTER TABLE ADD CONSTRAINT from a ForeignKey struct.
+func buildAlterAddFKFromFK(tableName string, fk *ForeignKey, dialect Dialect) string {
+	cols := strings.Join(fk.columns, ", ")
+	refCols := strings.Join(fk.refColumns, ", ")
+
+	fkSQL := fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
+		escapeTableName(tableName, dialect), tableName, fk.columns[0], cols,
+		escapeTableName(fk.refTable, dialect), refCols)
+	if fk.onDelete != "" {
+		fkSQL += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(fk.onDelete))
+	}
+	if fk.onUpdate != "" {
+		fkSQL += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(fk.onUpdate))
+	}
+	return fkSQL
 }
 
 func (d *PostgresDialect) GetDataType(col *Column) string {
@@ -123,31 +258,13 @@ func (d *PostgresDialect) BuildCreateTable(tb *TableBuilder) string {
 	// Add inline foreign keys defined on columns
 	for _, col := range tb.columns {
 		if col.refTable != "" && col.refColumn != "" {
-			fkDef := fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
-				tb.tableName, col.name, col.name, col.refTable, col.refColumn)
-
-			if col.onDelete != "" {
-				fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(col.onDelete))
-			}
-			if col.onUpdate != "" {
-				fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(col.onUpdate))
-			}
-			columnDefs = append(columnDefs, fkDef)
+			columnDefs = append(columnDefs, buildFKConstraint(tb.tableName, col, d, true))
 		}
 	}
 
 	// Add foreign keys defined using Foreign()
 	for _, fk := range tb.foreignKeys {
-		fkDef := fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
-			tb.tableName, fk.column, fk.column, fk.refTable, fk.refColumn)
-
-		if fk.onDelete != "" {
-			fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(fk.onDelete))
-		}
-		if fk.onUpdate != "" {
-			fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(fk.onUpdate))
-		}
-		columnDefs = append(columnDefs, fkDef)
+		columnDefs = append(columnDefs, buildFKConstraintFromFK(tb.tableName, fk, d, true))
 	}
 
 	// Add composite unique constraints
@@ -197,6 +314,13 @@ func (d *PostgresDialect) BuildModifyTable(tb *TableBuilder) []string {
 				sqls = append(sqls, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s",
 					tb.tableName, colName, defaultVal))
 			}
+
+			// Handle foreign key on changed column: drop old FK and re-add
+			if col.refTable != "" && col.refColumn != "" {
+				sqls = append(sqls, fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS fk_%s_%s",
+					tb.tableName, tb.tableName, col.name))
+				sqls = append(sqls, buildAlterAddFK(tb.tableName, col, d))
+			}
 		} else {
 			query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
 				tb.tableName, escapeColumnName(col.name, d), d.GetDataType(col))
@@ -223,8 +347,19 @@ func (d *PostgresDialect) BuildModifyTable(tb *TableBuilder) []string {
 					tb.tableName, tb.tableName, col.name, col.name, strings.Join(enumVals, ", "))
 				sqls = append(sqls, checkConstraint)
 			}
+
+			// Add foreign key constraint for inline references
+			if col.refTable != "" && col.refColumn != "" {
+				sqls = append(sqls, buildAlterAddFK(tb.tableName, col, d))
+			}
 		}
 	}
+
+	// Add foreign keys defined using Foreign()
+	for _, fk := range tb.foreignKeys {
+		sqls = append(sqls, buildAlterAddFKFromFK(tb.tableName, fk, d))
+	}
+
 	return sqls
 }
 
@@ -328,31 +463,13 @@ func (d *MySQLDialect) BuildCreateTable(tb *TableBuilder) string {
 	// Add inline foreign keys defined on columns
 	for _, col := range tb.columns {
 		if col.refTable != "" && col.refColumn != "" {
-			fkDef := fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
-				tb.tableName, col.name, col.name, col.refTable, col.refColumn)
-
-			if col.onDelete != "" {
-				fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(col.onDelete))
-			}
-			if col.onUpdate != "" {
-				fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(col.onUpdate))
-			}
-			columnDefs = append(columnDefs, fkDef)
+			columnDefs = append(columnDefs, buildFKConstraint(tb.tableName, col, d, true))
 		}
 	}
 
 	// Add foreign keys defined using Foreign()
 	for _, fk := range tb.foreignKeys {
-		fkDef := fmt.Sprintf("  CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)",
-			tb.tableName, fk.column, fk.column, fk.refTable, fk.refColumn)
-
-		if fk.onDelete != "" {
-			fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(fk.onDelete))
-		}
-		if fk.onUpdate != "" {
-			fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(fk.onUpdate))
-		}
-		columnDefs = append(columnDefs, fkDef)
+		columnDefs = append(columnDefs, buildFKConstraintFromFK(tb.tableName, fk, d, true))
 	}
 
 	// Add composite unique constraints
@@ -399,7 +516,23 @@ func (d *MySQLDialect) BuildModifyTable(tb *TableBuilder) []string {
 			query += fmt.Sprintf(" AFTER %s", *col.afterColumn)
 		}
 		sqls = append(sqls, query)
+
+		// Add foreign key constraint for inline references
+		if col.refTable != "" && col.refColumn != "" {
+			if col.isChange {
+				// Drop existing FK before re-adding
+				sqls = append(sqls, fmt.Sprintf("ALTER TABLE %s DROP FOREIGN KEY IF EXISTS fk_%s_%s",
+					tb.tableName, tb.tableName, col.name))
+			}
+			sqls = append(sqls, buildAlterAddFK(tb.tableName, col, d))
+		}
 	}
+
+	// Add foreign keys defined using Foreign()
+	for _, fk := range tb.foreignKeys {
+		sqls = append(sqls, buildAlterAddFKFromFK(tb.tableName, fk, d))
+	}
+
 	return sqls
 }
 
@@ -465,7 +598,7 @@ func (d *SQLiteDialect) BuildCreateTable(tb *TableBuilder) string {
 
 	var columnDefs []string
 	for _, col := range tb.columns {
-		def := fmt.Sprintf("  %s %s", col.name, d.GetDataType(col))
+		def := fmt.Sprintf("  %s %s", escapeColumnName(col.name, d), d.GetDataType(col))
 
 		if col.primary {
 			def += " PRIMARY KEY"
@@ -493,7 +626,7 @@ func (d *SQLiteDialect) BuildCreateTable(tb *TableBuilder) string {
 			for _, v := range col.enumValues {
 				enumVals = append(enumVals, fmt.Sprintf("'%s'", v))
 			}
-			def += fmt.Sprintf(" CHECK (%s IN (%s))", col.name, strings.Join(enumVals, ", "))
+			def += fmt.Sprintf(" CHECK (%s IN (%s))", escapeColumnName(col.name, d), strings.Join(enumVals, ", "))
 		}
 
 		columnDefs = append(columnDefs, def)
@@ -502,31 +635,13 @@ func (d *SQLiteDialect) BuildCreateTable(tb *TableBuilder) string {
 	// Add inline foreign keys defined on columns
 	for _, col := range tb.columns {
 		if col.refTable != "" && col.refColumn != "" {
-			fkDef := fmt.Sprintf("  FOREIGN KEY (%s) REFERENCES %s(%s)",
-				col.name, col.refTable, col.refColumn)
-
-			if col.onDelete != "" {
-				fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(col.onDelete))
-			}
-			if col.onUpdate != "" {
-				fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(col.onUpdate))
-			}
-			columnDefs = append(columnDefs, fkDef)
+			columnDefs = append(columnDefs, buildFKConstraint(tb.tableName, col, d, false))
 		}
 	}
 
 	// Add foreign keys defined using Foreign()
 	for _, fk := range tb.foreignKeys {
-		fkDef := fmt.Sprintf("  FOREIGN KEY (%s) REFERENCES %s(%s)",
-			fk.column, fk.refTable, fk.refColumn)
-
-		if fk.onDelete != "" {
-			fkDef += fmt.Sprintf(" ON DELETE %s", strings.ToUpper(fk.onDelete))
-		}
-		if fk.onUpdate != "" {
-			fkDef += fmt.Sprintf(" ON UPDATE %s", strings.ToUpper(fk.onUpdate))
-		}
-		columnDefs = append(columnDefs, fkDef)
+		columnDefs = append(columnDefs, buildFKConstraintFromFK(tb.tableName, fk, d, false))
 	}
 
 	// Add composite unique constraints
@@ -556,7 +671,7 @@ func (d *SQLiteDialect) BuildModifyTable(tb *TableBuilder) []string {
 		}
 
 		query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
-			tb.tableName, col.name, d.GetDataType(col))
+			tb.tableName, escapeColumnName(col.name, d), d.GetDataType(col))
 
 		if !col.nullable {
 			query += " NOT NULL"
@@ -575,10 +690,15 @@ func (d *SQLiteDialect) BuildModifyTable(tb *TableBuilder) []string {
 			for _, v := range col.enumValues {
 				enumVals = append(enumVals, fmt.Sprintf("'%s'", v))
 			}
-			query += fmt.Sprintf(" CHECK (%s IN (%s))", col.name, strings.Join(enumVals, ", "))
+			query += fmt.Sprintf(" CHECK (%s IN (%s))", escapeColumnName(col.name, d), strings.Join(enumVals, ", "))
 		}
 
 		sqls = append(sqls, query)
+
+		// SQLite does not support adding foreign key constraints via ALTER TABLE
+		if col.refTable != "" && col.refColumn != "" {
+			sqls = append(sqls, fmt.Sprintf("-- WARNING: SQLite does not support adding foreign keys via ALTER TABLE for column '%s'. Foreign key must be defined at table creation.", col.name))
+		}
 	}
 	return sqls
 }
