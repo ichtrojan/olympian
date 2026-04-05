@@ -325,8 +325,8 @@ func TestMySQLAfterColumn(t *testing.T) {
 
 	sqls := dialect.BuildModifyTable(tb)
 
-	if !strings.Contains(sqls[0], "AFTER name") {
-		t.Error("SQL should contain AFTER name")
+	if !strings.Contains(sqls[0], "AFTER `name`") {
+		t.Error("SQL should contain AFTER `name`")
 	}
 }
 
@@ -517,8 +517,8 @@ func TestModifyTableForeignKeys(t *testing.T) {
 		if !strings.Contains(sqls[0], "ADD COLUMN") {
 			t.Error("First SQL should be ADD COLUMN")
 		}
-		if !strings.Contains(sqls[0], "AFTER role") {
-			t.Error("First SQL should contain AFTER role")
+		if !strings.Contains(sqls[0], "AFTER `role`") {
+			t.Error("First SQL should contain AFTER `role`")
 		}
 		if !strings.Contains(sqls[1], "ADD CONSTRAINT fk_users_default_budget_id") {
 			t.Error("Second SQL should contain ADD CONSTRAINT for foreign key")
@@ -990,5 +990,372 @@ func TestPreviewModify(t *testing.T) {
 	}
 	if !strings.Contains(sqls[1], "CREATE INDEX") {
 		t.Error("Second statement should be CREATE INDEX for indexed column")
+	}
+}
+
+func TestIndexEscapingReservedKeywords(t *testing.T) {
+	tests := []struct {
+		name    string
+		dialect Dialect
+		check   string
+	}{
+		{"MySQL", &MySQLDialect{}, "ON `order` (`status`)"},
+		{"PostgreSQL", &PostgresDialect{}, `ON "order" ("status")`},
+		{"SQLite", &SQLiteDialect{}, `ON "order" ("status")`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &TableBuilder{
+				tableName: "order",
+				columns: []*Column{
+					{name: "id", dataType: "uuid", primary: true},
+					{name: "status", dataType: "string", hasIndex: true},
+				},
+			}
+
+			sqls := tt.dialect.BuildIndexStatements(tb)
+			if len(sqls) != 1 {
+				t.Fatalf("Expected 1 index statement, got %d", len(sqls))
+			}
+			if !strings.Contains(sqls[0], tt.check) {
+				t.Errorf("Should escape reserved keywords in index.\nExpected to contain: %s\nGot: %s", tt.check, sqls[0])
+			}
+		})
+	}
+}
+
+func TestDropTableEscaping(t *testing.T) {
+	t.Run("MySQL", func(t *testing.T) {
+		dialect := &MySQLDialect{}
+		sql := dialect.BuildDropTable("order")
+		if !strings.Contains(sql, "`order`") {
+			t.Errorf("Should escape reserved table name.\nGot: %s", sql)
+		}
+	})
+
+	t.Run("PostgreSQL", func(t *testing.T) {
+		dialect := &PostgresDialect{}
+		sql := dialect.BuildDropTable("user")
+		if !strings.Contains(sql, `"user"`) {
+			t.Errorf("Should escape reserved table name.\nGot: %s", sql)
+		}
+	})
+
+	t.Run("SQLite", func(t *testing.T) {
+		dialect := &SQLiteDialect{}
+		sql := dialect.BuildDropTable("order")
+		if !strings.Contains(sql, `"order"`) {
+			t.Errorf("Should escape reserved table name.\nGot: %s", sql)
+		}
+	})
+}
+
+func TestDropColumnEscaping(t *testing.T) {
+	t.Run("MySQL", func(t *testing.T) {
+		dialect := &MySQLDialect{}
+		sql := dialect.BuildDropColumn("user", "order")
+		if !strings.Contains(sql, "`user`") || !strings.Contains(sql, "`order`") {
+			t.Errorf("Should escape reserved names.\nGot: %s", sql)
+		}
+	})
+
+	t.Run("PostgreSQL", func(t *testing.T) {
+		dialect := &PostgresDialect{}
+		sql := dialect.BuildDropColumn("user", "role")
+		if !strings.Contains(sql, `"user"`) || !strings.Contains(sql, `"role"`) {
+			t.Errorf("Should escape reserved names.\nGot: %s", sql)
+		}
+	})
+}
+
+func TestCreateTableEscapesTableName(t *testing.T) {
+	t.Run("MySQL reserved table name", func(t *testing.T) {
+		dialect := &MySQLDialect{}
+		tb := &TableBuilder{
+			tableName: "order",
+			columns: []*Column{
+				{name: "id", dataType: "uuid", primary: true},
+			},
+		}
+		sql := dialect.BuildCreateTable(tb)
+		if !strings.Contains(sql, "CREATE TABLE IF NOT EXISTS `order`") {
+			t.Errorf("Should escape reserved table name.\nGot: %s", sql)
+		}
+	})
+
+	t.Run("PostgreSQL reserved table name", func(t *testing.T) {
+		dialect := &PostgresDialect{}
+		tb := &TableBuilder{
+			tableName: "user",
+			columns: []*Column{
+				{name: "id", dataType: "uuid", primary: true},
+			},
+		}
+		sql := dialect.BuildCreateTable(tb)
+		if !strings.Contains(sql, `CREATE TABLE IF NOT EXISTS "user"`) {
+			t.Errorf("Should escape reserved table name.\nGot: %s", sql)
+		}
+	})
+}
+
+func TestAfterColumnEscaping(t *testing.T) {
+	dialect := &MySQLDialect{}
+	afterCol := "order"
+	tb := &TableBuilder{
+		tableName: "events",
+		columns: []*Column{
+			{name: "priority", dataType: "integer", nullable: true, afterColumn: &afterCol},
+		},
+	}
+
+	sqls := dialect.BuildModifyTable(tb)
+	if !strings.Contains(sqls[0], "AFTER `order`") {
+		t.Errorf("Should escape reserved keyword in AFTER clause.\nGot: %s", sqls[0])
+	}
+}
+
+func TestStringLength(t *testing.T) {
+	t.Run("MySQL custom length", func(t *testing.T) {
+		dialect := &MySQLDialect{}
+		tb := &TableBuilder{
+			tableName: "users",
+			columns: []*Column{
+				{name: "id", dataType: "uuid", primary: true},
+				{name: "code", dataType: "string", length: 50},
+				{name: "email", dataType: "string"}, // default 255
+			},
+		}
+		sql := dialect.BuildCreateTable(tb)
+		if !strings.Contains(sql, "VARCHAR(50)") {
+			t.Errorf("Should use custom length.\nGot: %s", sql)
+		}
+		if !strings.Contains(sql, "VARCHAR(255)") {
+			t.Errorf("Should default to 255.\nGot: %s", sql)
+		}
+	})
+
+	t.Run("PostgreSQL custom length", func(t *testing.T) {
+		dialect := &PostgresDialect{}
+		tb := &TableBuilder{
+			tableName: "users",
+			columns: []*Column{
+				{name: "id", dataType: "uuid", primary: true},
+				{name: "code", dataType: "string", length: 100},
+			},
+		}
+		sql := dialect.BuildCreateTable(tb)
+		if !strings.Contains(sql, "VARCHAR(100)") {
+			t.Errorf("Should use custom length.\nGot: %s", sql)
+		}
+	})
+}
+
+func TestNewColumnTypes(t *testing.T) {
+	t.Run("MySQL types", func(t *testing.T) {
+		dialect := &MySQLDialect{}
+		tests := []struct {
+			col      *Column
+			expected string
+		}{
+			{&Column{dataType: "float"}, "FLOAT"},
+			{&Column{dataType: "double"}, "DOUBLE"},
+			{&Column{dataType: "smallint"}, "SMALLINT"},
+			{&Column{dataType: "mediumint"}, "MEDIUMINT"},
+			{&Column{dataType: "mediumtext"}, "MEDIUMTEXT"},
+			{&Column{dataType: "longtext"}, "LONGTEXT"},
+			{&Column{dataType: "binary"}, "BLOB"},
+			{&Column{dataType: "time"}, "TIME"},
+			{&Column{dataType: "year"}, "YEAR"},
+			{&Column{dataType: "char", length: 3}, "CHAR(3)"},
+			{&Column{dataType: "integer", unsigned: true}, "INT UNSIGNED"},
+			{&Column{dataType: "bigint", unsigned: true}, "BIGINT UNSIGNED"},
+		}
+		for _, tt := range tests {
+			result := dialect.GetDataType(tt.col)
+			if result != tt.expected {
+				t.Errorf("Expected %s for %s, got %s", tt.expected, tt.col.dataType, result)
+			}
+		}
+	})
+
+	t.Run("PostgreSQL types", func(t *testing.T) {
+		dialect := &PostgresDialect{}
+		tests := []struct {
+			col      *Column
+			expected string
+		}{
+			{&Column{dataType: "float"}, "REAL"},
+			{&Column{dataType: "double"}, "DOUBLE PRECISION"},
+			{&Column{dataType: "smallint"}, "SMALLINT"},
+			{&Column{dataType: "mediumtext"}, "TEXT"},
+			{&Column{dataType: "longtext"}, "TEXT"},
+			{&Column{dataType: "binary"}, "BYTEA"},
+			{&Column{dataType: "time"}, "TIME"},
+			{&Column{dataType: "char", length: 5}, "CHAR(5)"},
+		}
+		for _, tt := range tests {
+			result := dialect.GetDataType(tt.col)
+			if result != tt.expected {
+				t.Errorf("Expected %s for %s, got %s", tt.expected, tt.col.dataType, result)
+			}
+		}
+	})
+
+	t.Run("SQLite types", func(t *testing.T) {
+		dialect := &SQLiteDialect{}
+		tests := []struct {
+			col      *Column
+			expected string
+		}{
+			{&Column{dataType: "float"}, "REAL"},
+			{&Column{dataType: "double"}, "REAL"},
+			{&Column{dataType: "binary"}, "BLOB"},
+			{&Column{dataType: "mediumtext"}, "TEXT"},
+			{&Column{dataType: "longtext"}, "TEXT"},
+			{&Column{dataType: "time"}, "TEXT"},
+		}
+		for _, tt := range tests {
+			result := dialect.GetDataType(tt.col)
+			if result != tt.expected {
+				t.Errorf("Expected %s for %s, got %s", tt.expected, tt.col.dataType, result)
+			}
+		}
+	})
+}
+
+func TestCompositeIndex(t *testing.T) {
+	tests := []struct {
+		name    string
+		dialect Dialect
+	}{
+		{"PostgreSQL", &PostgresDialect{}},
+		{"MySQL", &MySQLDialect{}},
+		{"SQLite", &SQLiteDialect{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &TableBuilder{
+				tableName: "orders",
+				columns: []*Column{
+					{name: "id", dataType: "uuid", primary: true},
+					{name: "user_id", dataType: "uuid"},
+					{name: "product_id", dataType: "uuid"},
+				},
+				compositeIndexes: []*CompositeIndex{
+					{columns: []string{"user_id", "product_id"}},
+				},
+			}
+
+			sqls := tt.dialect.BuildIndexStatements(tb)
+			if len(sqls) != 1 {
+				t.Fatalf("Expected 1 index statement, got %d", len(sqls))
+			}
+			if !strings.Contains(sqls[0], "idx_orders_user_id_product_id") {
+				t.Errorf("Should auto-generate composite index name.\nGot: %s", sqls[0])
+			}
+			if !strings.Contains(sqls[0], "user_id, product_id") {
+				t.Errorf("Should contain both columns.\nGot: %s", sqls[0])
+			}
+		})
+	}
+}
+
+func TestCompositeIndexCustomName(t *testing.T) {
+	dialect := &MySQLDialect{}
+	tb := &TableBuilder{
+		tableName: "orders",
+		columns:   []*Column{},
+		compositeIndexes: []*CompositeIndex{
+			{columns: []string{"user_id", "product_id"}, name: "idx_custom"},
+		},
+	}
+
+	sqls := dialect.BuildIndexStatements(tb)
+	if len(sqls) != 1 {
+		t.Fatalf("Expected 1 index statement, got %d", len(sqls))
+	}
+	if !strings.Contains(sqls[0], "idx_custom") {
+		t.Errorf("Should use custom index name.\nGot: %s", sqls[0])
+	}
+}
+
+func TestColumnComment(t *testing.T) {
+	dialect := &MySQLDialect{}
+	tb := &TableBuilder{
+		tableName: "users",
+		columns: []*Column{
+			{name: "id", dataType: "uuid", primary: true},
+			{name: "email", dataType: "string", comment: "User email address"},
+		},
+	}
+	sql := dialect.BuildCreateTable(tb)
+	if !strings.Contains(sql, "COMMENT 'User email address'") {
+		t.Errorf("Should contain column comment.\nGot: %s", sql)
+	}
+}
+
+func TestFirstColumn(t *testing.T) {
+	dialect := &MySQLDialect{}
+	tb := &TableBuilder{
+		tableName: "users",
+		columns: []*Column{
+			{name: "priority", dataType: "integer", firstColumn: true},
+		},
+	}
+	sqls := dialect.BuildModifyTable(tb)
+	if !strings.Contains(sqls[0], "FIRST") {
+		t.Errorf("Should contain FIRST.\nGot: %s", sqls[0])
+	}
+}
+
+func TestConstrainedHelper(t *testing.T) {
+	dialect := &MySQLDialect{}
+
+	// Simulate ForeignId("user_id").Constrained()
+	col := &Column{name: "user_id", dataType: "uuid"}
+	cb := &ColumnBuilder{column: col}
+	cb.Constrained()
+
+	if col.refTable != "users" {
+		t.Errorf("Constrained() should derive table 'users' from 'user_id', got '%s'", col.refTable)
+	}
+	if col.refColumn != "id" {
+		t.Errorf("Constrained() should set refColumn to 'id', got '%s'", col.refColumn)
+	}
+
+	// Verify it generates FK SQL
+	tb := &TableBuilder{
+		tableName: "orders",
+		columns:   []*Column{col},
+	}
+	sql := dialect.BuildCreateTable(tb)
+	if !strings.Contains(sql, "FOREIGN KEY (user_id) REFERENCES users(id)") {
+		t.Errorf("Should generate FK constraint.\nGot: %s", sql)
+	}
+}
+
+func TestCascadeHelpers(t *testing.T) {
+	col := &Column{name: "user_id", dataType: "uuid"}
+	cb := &ColumnBuilder{column: col}
+	cb.CascadeOnDelete().CascadeOnUpdate()
+
+	if col.onDelete != "cascade" {
+		t.Error("CascadeOnDelete should set onDelete to cascade")
+	}
+	if col.onUpdate != "cascade" {
+		t.Error("CascadeOnUpdate should set onUpdate to cascade")
+	}
+
+	col2 := &Column{name: "order_id", dataType: "uuid"}
+	cb2 := &ColumnBuilder{column: col2}
+	cb2.NullOnDelete().RestrictOnUpdate()
+
+	if col2.onDelete != "set null" {
+		t.Error("NullOnDelete should set onDelete to set null")
+	}
+	if col2.onUpdate != "restrict" {
+		t.Error("RestrictOnUpdate should set onUpdate to restrict")
 	}
 }

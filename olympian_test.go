@@ -648,9 +648,9 @@ func TestCompositeUniqueConstraintDialects(t *testing.T) {
 		dialect Dialect
 		check   string
 	}{
-		{"PostgreSQL", &PostgresDialect{}, "CONSTRAINT uq_invoices_business_id_number UNIQUE (business_id, number)"},
-		{"MySQL", &MySQLDialect{}, "CONSTRAINT uq_invoices_business_id_number UNIQUE (business_id, number)"},
-		{"SQLite", &SQLiteDialect{}, "CONSTRAINT uq_invoices_business_id_number UNIQUE (business_id, number)"},
+		{"PostgreSQL", &PostgresDialect{}, "CONSTRAINT uq_invoices_business_id_invoice_number UNIQUE (business_id, invoice_number)"},
+		{"MySQL", &MySQLDialect{}, "CONSTRAINT uq_invoices_business_id_invoice_number UNIQUE (business_id, invoice_number)"},
+		{"SQLite", &SQLiteDialect{}, "CONSTRAINT uq_invoices_business_id_invoice_number UNIQUE (business_id, invoice_number)"},
 	}
 
 	for _, tt := range tests {
@@ -660,10 +660,10 @@ func TestCompositeUniqueConstraintDialects(t *testing.T) {
 				columns: []*Column{
 					{name: "id", dataType: "uuid", primary: true},
 					{name: "business_id", dataType: "string"},
-					{name: "number", dataType: "integer"},
+					{name: "invoice_number", dataType: "integer"},
 				},
 				uniqueConstraints: []*UniqueConstraint{
-					{columns: []string{"business_id", "number"}},
+					{columns: []string{"business_id", "invoice_number"}},
 				},
 			}
 
@@ -805,5 +805,202 @@ func TestBigIncrementsDialects(t *testing.T) {
 				t.Errorf("%s dialect should generate %s.\nGot: %s", tt.name, tt.check, sql)
 			}
 		})
+	}
+}
+
+func TestNewColumnTypesIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("products").Create(func() {
+		Uuid("id").Primary()
+		String("title")
+		String("code").Length(10)
+		Float("price")
+		Double("weight")
+		SmallInteger("quantity")
+		Binary("thumbnail")
+		MediumText("description")
+		LongText("full_description")
+		Time("open_at")
+		Char("currency_code", 3)
+		Boolean("active").Default(true)
+		Timestamps()
+	})
+	if err != nil {
+		t.Fatalf("Failed to create table with new column types: %v", err)
+	}
+
+	var tableName string
+	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='products'").Scan(&tableName)
+	if err != nil {
+		t.Fatalf("Table was not created: %v", err)
+	}
+}
+
+func TestDropColumns(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("users").Create(func() {
+		Uuid("id").Primary()
+		String("full_name")
+		String("email")
+		String("phone")
+	})
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	err = Table("users").DropColumns("email", "phone")
+	if err != nil {
+		t.Fatalf("Failed to drop columns: %v", err)
+	}
+}
+
+func TestCompositeIndexIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("orders").Create(func() {
+		Uuid("id").Primary()
+		Uuid("user_id")
+		Uuid("product_id")
+		CompIndex("user_id", "product_id")
+	})
+	if err != nil {
+		t.Fatalf("Failed to create table with composite index: %v", err)
+	}
+
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_orders_user_id_product_id'").Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to query for composite index: %v", err)
+	}
+	if count != 1 {
+		t.Error("Expected composite index 'idx_orders_user_id_product_id' to exist")
+	}
+}
+
+func TestForeignIdConstrained(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("users").Create(func() {
+		Uuid("id").Primary()
+		String("full_name")
+	})
+	if err != nil {
+		t.Fatalf("Failed to create users table: %v", err)
+	}
+
+	err = Table("posts").Create(func() {
+		Uuid("id").Primary()
+		ForeignId("user_id").Constrained()
+		String("title")
+	})
+	if err != nil {
+		t.Fatalf("Failed to create posts table with ForeignId: %v", err)
+	}
+
+	var tableName string
+	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='posts'").Scan(&tableName)
+	if err != nil {
+		t.Fatalf("Table was not created: %v", err)
+	}
+}
+
+func TestHasTable(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	exists, err := HasTable("nonexistent")
+	if err != nil {
+		t.Fatalf("HasTable error: %v", err)
+	}
+	if exists {
+		t.Error("Table should not exist")
+	}
+
+	err = Table("users").Create(func() {
+		Uuid("id").Primary()
+	})
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	exists, err = HasTable("users")
+	if err != nil {
+		t.Fatalf("HasTable error: %v", err)
+	}
+	if !exists {
+		t.Error("Table should exist")
+	}
+}
+
+func TestHasColumn(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("users").Create(func() {
+		Uuid("id").Primary()
+		String("full_name")
+	})
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	exists, err := HasColumn("users", "full_name")
+	if err != nil {
+		t.Fatalf("HasColumn error: %v", err)
+	}
+	if !exists {
+		t.Error("Column 'full_name' should exist")
+	}
+
+	exists, err = HasColumn("users", "nonexistent")
+	if err != nil {
+		t.Fatalf("HasColumn error: %v", err)
+	}
+	if exists {
+		t.Error("Column 'nonexistent' should not exist")
+	}
+}
+
+func TestMorphs(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("comments").Create(func() {
+		Uuid("id").Primary()
+		Morphs("commentable")
+		Text("body")
+		Timestamps()
+	})
+	if err != nil {
+		t.Fatalf("Failed to create table with morphs: %v", err)
+	}
+
+	exists, _ := HasColumn("comments", "commentable_id")
+	if !exists {
+		t.Error("commentable_id column should exist")
+	}
+	exists, _ = HasColumn("comments", "commentable_type")
+	if !exists {
+		t.Error("commentable_type column should exist")
 	}
 }
