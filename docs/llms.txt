@@ -67,29 +67,54 @@ func main() {
 ### Column Types
 - `olympian.Uuid(name)` - UUID column
 - `olympian.String(name)` - VARCHAR(255)
+- `olympian.Char(name)` - CHAR (fixed-length string)
 - `olympian.Text(name)` - TEXT
+- `olympian.MediumText(name)` - MEDIUMTEXT
+- `olympian.LongText(name)` - LONGTEXT
 - `olympian.Integer(name)` - INTEGER
+- `olympian.SmallInteger(name)` - SMALLINT
+- `olympian.MediumInteger(name)` - MEDIUMINT
 - `olympian.BigInteger(name)` - BIGINT
 - `olympian.TinyInteger(name)` - TINYINT
+- `olympian.UnsignedInteger(name)` - UNSIGNED INTEGER
+- `olympian.UnsignedBigInteger(name)` - UNSIGNED BIGINT
+- `olympian.UnsignedSmallInteger(name)` - UNSIGNED SMALLINT
+- `olympian.UnsignedTinyInteger(name)` - UNSIGNED TINYINT
+- `olympian.Float(name)` - FLOAT
+- `olympian.Double(name)` - DOUBLE
 - `olympian.Boolean(name)` - BOOLEAN
 - `olympian.Decimal(name, precision, scale)` - DECIMAL
+- `olympian.Binary(name)` - BINARY/BLOB
 - `olympian.Timestamp(name)` - TIMESTAMP
 - `olympian.Date(name)` - DATE
+- `olympian.Time(name)` - TIME
+- `olympian.Year(name)` - YEAR
 - `olympian.Json(name)` - JSON/JSONB
 - `olympian.Enum(name, ...values)` - ENUM type
 - `olympian.Increments(name)` - Auto-increment INT primary key
 - `olympian.BigIncrements(name)` - Auto-increment BIGINT primary key
+- `olympian.ForeignId(name)` - UNSIGNED BIGINT foreign key column
 
 ### Column Modifiers
 - `.Primary()` - Primary key
 - `.Nullable()` - Allow NULL
 - `.Unique()` - Unique constraint
 - `.Default(value)` - Default value
+- `.Length(size)` - Column length/size
+- `.Unsigned()` - Unsigned numeric column
 - `.After(column)` - Position after column (MySQL)
+- `.First()` - Place column first in table (MySQL)
 - `.AutoIncrement()` - Auto increment
+- `.Comment(text)` - Column comment
 - `.Index()` - Add index
 - `.IndexWithName(name)` - Add named index
 - `.Change()` - Modify existing column
+- `.Constrained()` - Add foreign key constraint (used with ForeignId)
+- `.CascadeOnDelete()` - CASCADE on delete
+- `.CascadeOnUpdate()` - CASCADE on update
+- `.RestrictOnDelete()` - RESTRICT on delete
+- `.RestrictOnUpdate()` - RESTRICT on update
+- `.NullOnDelete()` - SET NULL on delete
 
 ### Foreign Keys
 ```go
@@ -108,6 +133,19 @@ olympian.Uuid("user_id").
     OnDelete("cascade")
 ```
 
+ForeignId shorthand (creates unsigned bigint column with constraint):
+```go
+olympian.ForeignId("user_id").Constrained().CascadeOnDelete()
+```
+
+Composite foreign keys:
+```go
+olympian.Foreign("tenant_id", "user_id").
+    References("tenant_id", "id").
+    On("users").
+    OnDelete("cascade")
+```
+
 ### Table Operations
 ```go
 // Create table
@@ -118,12 +156,31 @@ olympian.Table("users").Modify(func() { ... })
 
 // Drop table
 olympian.Table("users").Drop()
+
+// Check if table exists
+olympian.Table("users").HasTable()
+
+// Check if column exists
+olympian.Table("users").HasColumn("email")
+
+// Drop specific columns
+olympian.Table("users").DropColumns("avatar", "bio")
+
+// Preview SQL without executing
+olympian.Table("users").PreviewCreate(func() { ... })
+olympian.Table("users").PreviewModify(func() { ... })
 ```
 
 ### Helper Functions
 - `olympian.Timestamps()` - Adds created_at and updated_at
+- `olympian.TimestampsTz()` - Adds created_at and updated_at with timezone
 - `olympian.SoftDeletes()` - Adds deleted_at column
+- `olympian.SoftDeletesTz()` - Adds deleted_at column with timezone
+- `olympian.RememberToken()` - Adds remember_token VARCHAR column
+- `olympian.Morphs(name)` - Adds polymorphic columns (name_id and name_type)
+- `olympian.NullableMorphs(name)` - Adds nullable polymorphic columns
 - `olympian.Unique(col1, col2)` - Composite unique constraint
+- `olympian.CompIndex(col1, col2)` - Composite index
 
 ### Migration Commands
 ```go
@@ -132,6 +189,7 @@ migrator.Rollback(migrations, 1)  // Rollback last batch
 migrator.Status(migrations)       // Show migration status
 migrator.Reset(migrations)        // Rollback all
 migrator.Fresh(migrations)        // Drop all and re-run
+migrator.Refresh(migrations)      // Rollback all and re-run
 ```
 
 ### Database Seeders

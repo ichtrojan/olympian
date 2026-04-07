@@ -581,7 +581,7 @@
                 <div class="feature-card">
                     <div class="feature-icon">🔗</div>
                     <h3 class="feature-title">Foreign Keys</h3>
-                    <p>Full foreign key support with cascading actions and relationship management.</p>
+                    <p>Full foreign key support with cascading actions, ForeignId shorthand, and relationship management.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">✅</div>
@@ -612,6 +612,26 @@
                     <div class="feature-icon">🔧</div>
                     <h3 class="feature-title">Column Changes</h3>
                     <p>Modify existing column types and properties with the Change() modifier for evolving schemas.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3 class="feature-title">25+ Column Types</h3>
+                    <p>Rich type system including Float, Double, Char, Binary, Time, Year, and unsigned variants.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔍</div>
+                    <h3 class="feature-title">Schema Inspection</h3>
+                    <p>Check existing schema with HasTable and HasColumn before making changes.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📑</div>
+                    <h3 class="feature-title">Composite Indexes</h3>
+                    <p>Create multi-column indexes and unique constraints for optimized queries.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">👁️</div>
+                    <h3 class="feature-title">Preview / Dry-Run</h3>
+                    <p>Preview generated SQL without executing it to verify migrations before running.</p>
                 </div>
             </div>
         </div>
@@ -809,7 +829,7 @@ _, err := db.Exec("CREATE EXTENSION IF NOT EXISTS postgis")
 
         <div class="section">
             <h2 class="section-title">Column Types</h2>
-            <p class="section-subtitle">Rich set of column types for any schema</p>
+            <p class="section-subtitle">25+ column types for any schema</p>
 
             <div class="features-grid">
                 <div class="feature-card">
@@ -860,6 +880,58 @@ _, err := db.Exec("CREATE EXTENSION IF NOT EXISTS postgis")
                     <div class="api-name">Decimal(name, p, s)</div>
                     <p>Precise decimals</p>
                 </div>
+                <div class="feature-card">
+                    <div class="api-name">Float(name)</div>
+                    <p>Floating point</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Double(name)</div>
+                    <p>Double precision</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">SmallInteger(name)</div>
+                    <p>Small integers (SMALLINT)</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">MediumInteger(name)</div>
+                    <p>Medium integers</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">UnsignedInteger(name)</div>
+                    <p>Unsigned INT</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">UnsignedBigInteger(name)</div>
+                    <p>Unsigned BIGINT</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Char(name, len)</div>
+                    <p>Fixed-length string</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">MediumText(name)</div>
+                    <p>Medium text content</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">LongText(name)</div>
+                    <p>Long text content</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Binary(name)</div>
+                    <p>Binary/BLOB data</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Time(name)</div>
+                    <p>Time of day</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">Year(name)</div>
+                    <p>Year value</p>
+                </div>
+                <div class="feature-card">
+                    <div class="api-name">ForeignId(name)</div>
+                    <p>FK with Constrained()</p>
+                </div>
             </div>
 
             <h3 style="color: var(--accent-purple); margin: 3rem 0 1rem;">Modifiers</h3>
@@ -872,7 +944,14 @@ olympian.Integer("age").After("name")
 olympian.Integer("id").AutoIncrement()
 olympian.String("status").Change()           // Modify existing column
 olympian.String("email").Index()             // Add index (auto-named)
-olympian.String("slug").IndexWithName("idx") // Add index with custom name</code></pre>
+olympian.String("slug").IndexWithName("idx") // Add index with custom name
+olympian.String("name").Length(100)          // Custom VARCHAR length
+olympian.Integer("count").Unsigned()         // Unsigned integer
+olympian.String("col").First()              // Place column first
+olympian.String("note").Comment("A note")   // Column comment
+olympian.ForeignId("user_id").Constrained() // FK shorthand
+olympian.ForeignId("user_id").Constrained().CascadeOnDelete()  // Cascade delete
+olympian.ForeignId("user_id").Constrained().NullOnDelete()     // Set null on delete</code></pre>
             </div>
         </div>
 

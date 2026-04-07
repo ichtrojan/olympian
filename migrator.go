@@ -266,6 +266,15 @@ func (m *Migrator) Reset(migrations []Migration) error {
 	return m.Rollback(migrations, lastBatch)
 }
 
+// Refresh rolls back all migrations and re-runs them.
+// Unlike Fresh(), it uses the Down() functions rather than dropping tables directly.
+func (m *Migrator) Refresh(migrations []Migration) error {
+	if err := m.Reset(migrations); err != nil {
+		return fmt.Errorf("failed to reset during refresh: %w", err)
+	}
+	return m.Migrate(migrations)
+}
+
 func (m *Migrator) Fresh(migrations []Migration) error {
 	SetDB(m.db, m.dialect)
 

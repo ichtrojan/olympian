@@ -27,6 +27,7 @@ func init() {
 	migrateCmd.AddCommand(migrateRollbackCmd)
 	migrateCmd.AddCommand(migrateStatusCmd)
 	migrateCmd.AddCommand(migrateResetCmd)
+	migrateCmd.AddCommand(migrateRefreshCmd)
 	migrateCmd.AddCommand(migrateFreshCmd)
 	migrateCmd.AddCommand(migrateCreateCmd)
 
@@ -74,6 +75,15 @@ var migrateResetCmd = &cobra.Command{
 	},
 }
 
+var migrateRefreshCmd = &cobra.Command{
+	Use:          "refresh",
+	Short:        "Rollback all migrations and re-run them",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runWithCmdMigrate("refresh")
+	},
+}
+
 var migrateFreshCmd = &cobra.Command{
 	Use:          "fresh",
 	Short:        "Drop all tables and re-run all migrations",
@@ -93,7 +103,7 @@ var migrateCreateCmd = &cobra.Command{
 }
 
 func runMigrate(cmd *cobra.Command, args []string) error {
-	return runWithCmdMigrate("migrate")
+	return runWithCmdMigrate("up")
 }
 
 func runWithCmdMigrate(command string) error {
@@ -104,18 +114,27 @@ func runWithCmdMigrate(command string) error {
 		if err := initializeMigrateFile(); err != nil {
 			return fmt.Errorf("failed to initialize: %w", err)
 		}
-		fmt.Println("✓ Created cmd/migrate/main.go")
+
+		// Also create seeders directory so the import doesn't fail
+		if err := os.MkdirAll("seeders", 0755); err != nil {
+			return fmt.Errorf("failed to create seeders directory: %w", err)
+		}
+		seederInit := "package seeders\n"
+		if err := os.WriteFile("seeders/init.go", []byte(seederInit), 0644); err != nil {
+			return fmt.Errorf("failed to create seeders init: %w", err)
+		}
+
+		fmt.Println("Created cmd/migrate/main.go")
 		fmt.Println()
 	}
 
-	// Use the existing cmd/migrate/main.go
-	var runCmd *exec.Cmd
-	if command == "migrate" {
-		// No argument needed for migrate - it's the default
-		runCmd = exec.Command("go", "run", "cmd/migrate/main.go")
-	} else {
-		runCmd = exec.Command("go", "run", "cmd/migrate/main.go", command)
+	// Map CLI commands to the generated main.go commands
+	// "rollback" maps to "down" in the generated template
+	if command == "rollback" {
+		command = "down"
 	}
+
+	runCmd := exec.Command("go", "run", "cmd/migrate/main.go", command)
 	runCmd.Stdout = os.Stdout
 	runCmd.Stderr = os.Stderr
 	runCmd.Env = os.Environ()
@@ -169,7 +188,6 @@ func initializeMigrateFile() error {
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -179,20 +197,16 @@ import (
 	"github.com/joho/godotenv"
 
 	_ "%s/migrations"
+	_ "%s/seeders"
 )
 
 func main() {
 	_ = godotenv.Load()
 
-	dbDriver := os.Getenv("DB_DRIVER")
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
-	dbName := os.Getenv("DB_NAME")
-	dbUser := os.Getenv("DB_USER")
-	dbPass := os.Getenv("DB_PASS")
-
+	dbDriver := getEnv("DB_DRIVER", "")
 	if dbDriver == "" {
-		log.Fatal("DB_DRIVER environment variable not set")
+		fmt.Println("DB_DRIVER environment variable not set")
+		os.Exit(1)
 	}
 
 	var dsn string
@@ -200,68 +214,139 @@ func main() {
 
 	switch dbDriver {
 	case "mysql":
+		dbHost := getEnv("DB_HOST", "127.0.0.1")
+		dbPort := getEnv("DB_PORT", "3306")
+		dbUser := getEnv("DB_USER", "root")
+		dbPass := getEnv("DB_PASS", "")
+		dbName := getEnv("DB_NAME", "")
 		dsn = fmt.Sprintf("%%s:%%s@tcp(%%s:%%s)/%%s?parseTime=true", dbUser, dbPass, dbHost, dbPort, dbName)
 		dialect = olympian.MySQL()
 	case "postgres":
-		dsn = fmt.Sprintf("postgres://%%s:%%s@%%s:%%s/%%s?sslmode=disable", dbUser, dbPass, dbHost, dbPort, dbName)
+		dbHost := getEnv("DB_HOST", "localhost")
+		dbPort := getEnv("DB_PORT", "5432")
+		dbUser := getEnv("DB_USER", "postgres")
+		dbPass := getEnv("DB_PASS", "")
+		dbName := getEnv("DB_NAME", "")
+		sslMode := getEnv("DB_SSLMODE", "disable")
+		if dbPass == "" {
+			dsn = fmt.Sprintf("postgres://%%s@%%s:%%s/%%s?sslmode=%%s", dbUser, dbHost, dbPort, dbName, sslMode)
+		} else {
+			dsn = fmt.Sprintf("postgres://%%s:%%s@%%s:%%s/%%s?sslmode=%%s", dbUser, dbPass, dbHost, dbPort, dbName, sslMode)
+		}
 		dialect = olympian.Postgres()
 	case "sqlite3":
-		dsn = os.Getenv("DB_DSN")
-		if dsn == "" {
-			dsn = "./database.db"
-		}
+		dsn = getEnv("DB_DSN", "./database.db")
 		dialect = olympian.SQLite()
 	default:
-		log.Fatalf("Unsupported database driver: %%s", dbDriver)
+		fmt.Printf("Unsupported database driver: %%s\n", dbDriver)
+		os.Exit(1)
 	}
 
 	db, err := sql.Open(dbDriver, dsn)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %%v", err)
+		fmt.Printf("Failed to connect to database: %%v\n", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
+	if err := db.Ping(); err != nil {
+		fmt.Printf("Failed to ping database: %%v\n", err)
+		os.Exit(1)
+	}
+
 	migrator := olympian.NewMigrator(db, dialect)
 	if err := migrator.Init(); err != nil {
-		log.Fatalf("Failed to initialize migrator: %%v", err)
+		fmt.Printf("Failed to initialize migrator: %%v\n", err)
+		os.Exit(1)
 	}
 
+	olympian.SetDB(db, dialect)
 	migrations := olympian.GetMigrations()
 
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "status":
-			if err := migrator.Status(migrations); err != nil {
-				log.Fatalf("Failed to get status: %%v", err)
-			}
-		case "rollback":
-			if err := migrator.Rollback(migrations, 1); err != nil {
-				log.Fatalf("Failed to rollback: %%v", err)
-			}
-			fmt.Println("Rollback completed successfully")
-		case "reset":
-			if err := migrator.Reset(migrations); err != nil {
-				log.Fatalf("Failed to reset: %%v", err)
-			}
-			fmt.Println("Reset completed successfully")
-		case "fresh":
-			if err := migrator.Fresh(migrations); err != nil {
-				log.Fatalf("Failed to fresh: %%v", err)
-			}
-			fmt.Println("Fresh migration completed successfully")
-		default:
-			fmt.Printf("Unknown command: %%s\n", os.Args[1])
-			fmt.Println("Available commands: migrate (default), status, rollback, reset, fresh")
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: migrate [command]")
+		fmt.Println("Commands:")
+		fmt.Println("  up        Run all pending migrations")
+		fmt.Println("  down      Rollback the last batch of migrations")
+		fmt.Println("  status    Show migration status")
+		fmt.Println("  reset     Rollback all migrations")
+		fmt.Println("  refresh   Rollback all and re-run migrations")
+		fmt.Println("  fresh     Drop all tables and re-run migrations")
+		fmt.Println("  seed      Run all seeders")
+		os.Exit(1)
+	}
+
+	seederRunner := olympian.NewSeederRunner(db, dialect)
+
+	switch os.Args[1] {
+	case "up":
+		fmt.Println("Running migrations...")
+		if err := migrator.Migrate(migrations); err != nil {
+			fmt.Printf("Migration failed: %%v\n", err)
 			os.Exit(1)
 		}
-	} else {
-		if err := migrator.Migrate(migrations); err != nil {
-			log.Fatalf("Failed to run migrations: %%v", err)
+		fmt.Println("Migrations completed")
+	case "down":
+		fmt.Println("Rolling back last batch...")
+		if err := migrator.Rollback(migrations, 1); err != nil {
+			fmt.Printf("Rollback failed: %%v\n", err)
+			os.Exit(1)
 		}
-		fmt.Println("Migrations completed successfully")
+		fmt.Println("Rollback completed")
+	case "status":
+		if err := migrator.Status(migrations); err != nil {
+			fmt.Printf("Status check failed: %%v\n", err)
+			os.Exit(1)
+		}
+	case "reset":
+		fmt.Println("Resetting all migrations...")
+		if err := migrator.Reset(migrations); err != nil {
+			fmt.Printf("Reset failed: %%v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Reset completed")
+	case "refresh":
+		fmt.Println("Refreshing migrations...")
+		if err := migrator.Refresh(migrations); err != nil {
+			fmt.Printf("Refresh failed: %%v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Refresh completed")
+	case "fresh":
+		fmt.Println("Dropping all tables and re-running migrations...")
+		if err := migrator.Fresh(migrations); err != nil {
+			fmt.Printf("Fresh migration failed: %%v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Fresh migration completed")
+	case "seed":
+		fmt.Println("Running seeders...")
+		seeders := olympian.GetSeeders()
+		if len(os.Args) > 2 {
+			if err := seederRunner.RunSpecific(seeders, os.Args[2:]...); err != nil {
+				fmt.Printf("Seeding failed: %%v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			if err := seederRunner.Run(seeders); err != nil {
+				fmt.Printf("Seeding failed: %%v\n", err)
+				os.Exit(1)
+			}
+		}
+		fmt.Println("Seeding completed")
+	default:
+		fmt.Printf("Unknown command: %%s\n", os.Args[1])
+		os.Exit(1)
 	}
 }
-`, moduleName)
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+`, moduleName, moduleName)
 
 	return os.WriteFile(mainGoPath, []byte(template), 0644)
 }

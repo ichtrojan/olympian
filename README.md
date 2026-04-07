@@ -9,7 +9,7 @@ A powerful, Laravel-inspired database migration system for Go. Olympian provides
 - **Migration Tracking**: Automatic tracking of executed migrations with batch support
 - **Rollback Support**: Roll back migrations individually or in batches
 - **Foreign Keys**: Full support for foreign key constraints with cascading actions
-- **Rich Column Types**: UUID, ULID, String, Text, Integer, Boolean, Decimal, Timestamp, Date, JSON, Enum, and more
+- **Rich Column Types**: UUID, ULID, String, Text, Integer, Float, Double, Boolean, Decimal, Timestamp, Date, Time, JSON, Enum, Binary, and more
 - **Schema Modifications**: Add columns to existing tables with position control
 - **Database Seeders**: Populate your database with test or initial data using structs or maps
 - **CLI Tool**: Command-line interface for running migrations and seeders
@@ -117,6 +117,21 @@ olympian.Timestamp("created_at")        // TIMESTAMP
 olympian.Date("birth_date")             // DATE
 olympian.Json("metadata")               // JSON/JSONB
 olympian.Enum("status", "pending", "active", "inactive")  // ENUM type
+olympian.Float("price")                 // FLOAT/REAL
+olympian.Double("weight")               // DOUBLE/DOUBLE PRECISION
+olympian.SmallInteger("qty")            // SMALLINT
+olympian.MediumInteger("count")         // MEDIUMINT
+olympian.UnsignedInteger("views")       // INT UNSIGNED (MySQL)
+olympian.UnsignedBigInteger("total")    // BIGINT UNSIGNED (MySQL)
+olympian.UnsignedSmallInteger("age")    // SMALLINT UNSIGNED (MySQL)
+olympian.UnsignedTinyInteger("flag")    // TINYINT UNSIGNED (MySQL)
+olympian.Char("code", 3)               // CHAR(3)
+olympian.MediumText("body")            // MEDIUMTEXT
+olympian.LongText("content")           // LONGTEXT
+olympian.Binary("data")                // BLOB/BYTEA
+olympian.Time("open_at")               // TIME
+olympian.Year("birth_year")            // YEAR
+olympian.ForeignId("user_id").Constrained()  // UUID FK shorthand
 ```
 
 ### Auto-Incrementing Primary Keys
@@ -142,6 +157,16 @@ olympian.Integer("id").AutoIncrement()                 // Auto increment
 olympian.String("status").Change()                     // Modify existing column
 olympian.String("email").Index()                       // Add index (auto-named)
 olympian.String("slug").IndexWithName("idx_slug")      // Add index with custom name
+olympian.String("code").Length(100)                     // Custom VARCHAR length → VARCHAR(100)
+olympian.Integer("views").Unsigned()                    // Mark as unsigned
+olympian.String("priority").First()                     // Place column first (MySQL)
+olympian.String("email").Comment("User email")          // Column comment (MySQL)
+olympian.ForeignId("user_id").Constrained()             // Auto FK from naming convention
+olympian.ForeignId("user_id").Constrained().CascadeOnDelete()  // FK with cascade delete
+olympian.ForeignId("user_id").Constrained().CascadeOnUpdate()  // FK with cascade update
+olympian.ForeignId("user_id").Constrained().RestrictOnDelete() // FK with restrict delete
+olympian.ForeignId("user_id").Constrained().RestrictOnUpdate() // FK with restrict update
+olympian.ForeignId("user_id").Constrained().NullOnDelete()     // FK with set null on delete
 ```
 
 ## Foreign Keys
@@ -154,6 +179,25 @@ olympian.Foreign("user_id").
     On("users").
     OnDelete("cascade").
     OnUpdate("restrict")
+```
+
+### ForeignId Shorthand
+
+Use `ForeignId` to create a UUID foreign key column with automatic constraint naming:
+
+```go
+olympian.ForeignId("user_id").Constrained()                    // FK to users.id
+olympian.ForeignId("user_id").Constrained().CascadeOnDelete()  // With cascade delete
+```
+
+### Composite Foreign Keys
+
+Define foreign keys across multiple columns:
+
+```go
+olympian.Foreign("user_id", "tenant_id").
+    References("id", "tenant_id").
+    On("users")
 ```
 
 ### Inline Foreign Keys
@@ -231,6 +275,26 @@ Add soft delete support:
 olympian.SoftDeletes()  // Adds deleted_at column
 ```
 
+### Polymorphic Columns
+
+```go
+olympian.Morphs("commentable")          // Adds commentable_id (UUID) + commentable_type (VARCHAR)
+olympian.NullableMorphs("taggable")     // Nullable polymorphic columns
+```
+
+### Remember Token
+
+```go
+olympian.RememberToken()  // Adds remember_token VARCHAR(100) nullable
+```
+
+### Timezone-Aware Timestamps
+
+```go
+olympian.TimestampsTz()   // Timezone-aware created_at and updated_at
+olympian.SoftDeletesTz()  // Timezone-aware deleted_at
+```
+
 ## Table Operations
 
 ### Creating Tables
@@ -288,6 +352,39 @@ olympian.Table("users").Drop()
 
 ```go
 olympian.DropColumnIfExists("users", "phone")
+
+// Batch column drop
+olympian.Table("users").DropColumns("email", "phone")
+```
+
+### Checking Table and Column Existence
+
+```go
+exists, err := olympian.HasTable("users")          // Check if table exists
+exists, err := olympian.HasColumn("users", "email") // Check if column exists
+```
+
+### Composite Indexes
+
+```go
+olympian.CompIndex("user_id", "product_id")                    // Composite multi-column index
+olympian.CompIndex("col1", "col2").Name("custom_idx")          // With custom name
+```
+
+### Dry-Run SQL Preview
+
+Preview the SQL that would be generated without executing it:
+
+```go
+olympian.PreviewCreate(func() {
+    olympian.Uuid("id").Primary()
+    olympian.String("name")
+    olympian.Timestamps()
+})
+
+olympian.PreviewModify(func() {
+    olympian.String("phone").Nullable()
+})
 ```
 
 ## Advanced Operations
@@ -461,6 +558,14 @@ migrator.Reset(migrations)  // Rollback all migrations
 migrator.Fresh(migrations)  // Drop all tables and re-run migrations
 ```
 
+### Refresh Migrations
+
+```go
+migrator.Refresh(migrations)  // Rollback all migrations, then re-migrate
+```
+
+Unlike `Fresh` which drops all tables directly, `Refresh` runs each migration's `Down` function before re-running `Up`.
+
 ## CLI Tool
 
 ### Installation
@@ -546,6 +651,9 @@ olympian migrate reset
 
 # Fresh migration (drop all tables and re-run)
 olympian migrate fresh
+
+# Refresh (rollback all, then re-migrate)
+olympian migrate refresh
 
 # Create migration in custom path
 olympian migrate create posts --path ./database/migrations
@@ -634,15 +742,18 @@ Olympian uses a dialect system to generate database-specific SQL:
 - MySQL: Uses `CHAR(36)` for UUIDs, `CHAR(26)` for ULIDs, `JSON`, `AUTO_INCREMENT`, automatically escapes reserved keywords with backticks
 - SQLite: Uses `TEXT` for most types, `AUTOINCREMENT`
 
-### MySQL Reserved Keywords
+### Reserved Keywords
 
-Olympian automatically handles MySQL reserved keywords by wrapping them in backticks. You can safely use column names like:
-- `limit`, `order`, `group`, `key`, `index`, `type`, etc.
+Olympian automatically handles reserved keywords across all three dialects. Over 80 keywords are covered, including `role`, `date`, `time`, `action`, `comment`, `rank`, `position`, `offset`, `status`, `level`, `window`, `limit`, `order`, `group`, `key`, `index`, `type`, and more.
+
+- **MySQL**: Wraps in backticks (`` `column` ``)
+- **PostgreSQL**: Wraps in double quotes (`"column"`)
+- **SQLite**: Wraps in double quotes (`"column"`)
 
 Example:
 ```go
-olympian.BigInteger("limit").Nullable()  // Generates: `limit` BIGINT
-olympian.String("type")                   // Generates: `type` VARCHAR(255)
+olympian.BigInteger("limit").Nullable()  // MySQL: `limit` BIGINT, PostgreSQL: "limit" BIGINT
+olympian.String("status")                // MySQL: `status` VARCHAR(255), PostgreSQL: "status" VARCHAR(255)
 ```
 
 ## Best Practices
@@ -812,6 +923,6 @@ type User struct {
 - [x] Seed data support
 - [x] Column modifications (Change)
 - [ ] Migration dependencies
-- [ ] Dry-run mode
+- [x] Dry-run mode (PreviewCreate/PreviewModify)
 - [ ] SQL Server support
 - [ ] Migration templates
