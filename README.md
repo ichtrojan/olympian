@@ -9,7 +9,7 @@ A powerful, Laravel-inspired database migration system for Go. Olympian provides
 - **Migration Tracking**: Automatic tracking of executed migrations with batch support
 - **Rollback Support**: Roll back migrations individually or in batches
 - **Foreign Keys**: Full support for foreign key constraints with cascading actions
-- **Rich Column Types**: UUID, String, Text, Integer, Float, Double, Boolean, Decimal, Timestamp, Date, Time, JSON, Enum, Binary, and more
+- **Rich Column Types**: UUID, ULID, String, Text, Integer, Float, Double, Boolean, Decimal, Timestamp, Date, Time, JSON, Enum, Binary, and more
 - **Schema Modifications**: Add columns to existing tables with position control
 - **Database Seeders**: Populate your database with test or initial data using structs or maps
 - **CLI Tool**: Command-line interface for running migrations and seeders
@@ -105,6 +105,7 @@ Olympian supports a rich set of column types:
 
 ```go
 olympian.Uuid("id")                    // UUID column
+olympian.Ulid("id")                    // ULID column (26-char sortable ID)
 olympian.String("name")                 // VARCHAR(255)
 olympian.Text("description")            // TEXT
 olympian.TinyInteger("status")          // TINYINT
@@ -737,8 +738,8 @@ Each migration runs in a transaction. If a migration fails, it's automatically r
 ### Dialect System
 
 Olympian uses a dialect system to generate database-specific SQL:
-- PostgreSQL: Uses `UUID`, `JSONB`, `SERIAL` types
-- MySQL: Uses `CHAR(36)` for UUIDs, `JSON`, `AUTO_INCREMENT`, automatically escapes reserved keywords with backticks
+- PostgreSQL: Uses `UUID`, `CHAR(26)` for ULIDs, `JSONB`, `SERIAL` types
+- MySQL: Uses `CHAR(36)` for UUIDs, `CHAR(26)` for ULIDs, `JSON`, `AUTO_INCREMENT`, automatically escapes reserved keywords with backticks
 - SQLite: Uses `TEXT` for most types, `AUTOINCREMENT`
 
 ### Reserved Keywords

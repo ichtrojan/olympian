@@ -779,6 +779,73 @@ func TestIncrementsDialects(t *testing.T) {
 	}
 }
 
+func TestUlidTableCreation(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	SetDB(db, &SQLiteDialect{})
+
+	err := Table("events").Create(func() {
+		Ulid("id").Primary()
+		String("name")
+		Timestamps()
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create table with ULID primary key: %v", err)
+	}
+
+	var tableName string
+	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='events'").Scan(&tableName)
+	if err != nil {
+		t.Fatalf("Table was not created: %v", err)
+	}
+
+	// Insert and retrieve a record using a ULID-format id
+	_, err = db.Exec("INSERT INTO events (id, name) VALUES ('01ARZ3NDEKTSV4RRFFQ69G5FAV', 'Launch')")
+	if err != nil {
+		t.Fatalf("Failed to insert record with ULID id: %v", err)
+	}
+
+	var name string
+	err = db.QueryRow("SELECT name FROM events WHERE id = '01ARZ3NDEKTSV4RRFFQ69G5FAV'").Scan(&name)
+	if err != nil {
+		t.Fatalf("Failed to retrieve record by ULID id: %v", err)
+	}
+	if name != "Launch" {
+		t.Errorf("Expected name 'Launch', got '%s'", name)
+	}
+}
+
+func TestUlidDialects(t *testing.T) {
+	tests := []struct {
+		name    string
+		dialect Dialect
+		check   string
+	}{
+		{"PostgreSQL", &PostgresDialect{}, "CHAR(26)"},
+		{"MySQL", &MySQLDialect{}, "CHAR(26) CHARACTER SET ascii COLLATE ascii_general_ci"},
+		{"SQLite", &SQLiteDialect{}, "TEXT"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &TableBuilder{
+				tableName: "events",
+				columns: []*Column{
+					{name: "id", dataType: "ulid", primary: true},
+					{name: "name", dataType: "string"},
+				},
+			}
+
+			sql := tt.dialect.BuildCreateTable(tb)
+			if !contains(sql, tt.check) {
+				t.Errorf("%s dialect should use %s for ULID.\nGot: %s", tt.name, tt.check, sql)
+			}
+		})
+	}
+}
+
 func TestBigIncrementsDialects(t *testing.T) {
 	tests := []struct {
 		name    string

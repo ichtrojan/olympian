@@ -14,6 +14,7 @@ func TestPostgresDialectDataTypes(t *testing.T) {
 		expected string
 	}{
 		{&Column{dataType: "uuid"}, "UUID"},
+		{&Column{dataType: "ulid"}, "CHAR(26)"},
 		{&Column{dataType: "string"}, "VARCHAR(255)"},
 		{&Column{dataType: "text"}, "TEXT"},
 		{&Column{dataType: "integer"}, "INTEGER"},
@@ -43,6 +44,7 @@ func TestMySQLDialectDataTypes(t *testing.T) {
 		expected string
 	}{
 		{&Column{dataType: "uuid"}, "CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci"},
+		{&Column{dataType: "ulid"}, "CHAR(26) CHARACTER SET ascii COLLATE ascii_general_ci"},
 		{&Column{dataType: "string"}, "VARCHAR(255)"},
 		{&Column{dataType: "text"}, "TEXT"},
 		{&Column{dataType: "integer"}, "INT"},
@@ -70,6 +72,7 @@ func TestSQLiteDialectDataTypes(t *testing.T) {
 		expected string
 	}{
 		{&Column{dataType: "uuid"}, "TEXT"},
+		{&Column{dataType: "ulid"}, "TEXT"},
 		{&Column{dataType: "string"}, "TEXT"},
 		{&Column{dataType: "text"}, "TEXT"},
 		{&Column{dataType: "integer"}, "INTEGER"},

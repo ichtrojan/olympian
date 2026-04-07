@@ -189,6 +189,8 @@ func (d *PostgresDialect) GetDataType(col *Column) string {
 	switch col.dataType {
 	case "uuid":
 		return "UUID"
+	case "ulid":
+		return "CHAR(26)"
 	case "string":
 		length := 255
 		if col.length > 0 {
@@ -436,6 +438,8 @@ func (d *MySQLDialect) GetDataType(col *Column) string {
 	switch col.dataType {
 	case "uuid":
 		return "CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci"
+	case "ulid":
+		return "CHAR(26) CHARACTER SET ascii COLLATE ascii_general_ci"
 	case "string":
 		length := 255
 		if col.length > 0 {
@@ -659,7 +663,7 @@ func (d *MySQLDialect) Placeholder(_ int) string {
 
 func (d *SQLiteDialect) GetDataType(col *Column) string {
 	switch col.dataType {
-	case "uuid", "string", "char", "text", "mediumtext", "longtext":
+	case "uuid", "ulid", "string", "char", "text", "mediumtext", "longtext":
 		return "TEXT"
 	case "tinyint", "smallint", "mediumint", "integer", "bigint":
 		return "INTEGER"
