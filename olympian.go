@@ -112,15 +112,7 @@ func (tb *TableBuilder) Create(fn func()) error {
 		return err
 	}
 
-	// Execute index creation statements
-	indexStmts := tb.dialect.BuildIndexStatements(tb)
-	for _, stmt := range indexStmts {
-		if _, err := tb.db.Exec(stmt); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return executeIndexStatements(tb)
 }
 
 func (tb *TableBuilder) Modify(fn func()) error {
@@ -135,14 +127,24 @@ func (tb *TableBuilder) Modify(fn func()) error {
 		}
 	}
 
-	// Execute index creation statements
-	indexStmts := tb.dialect.BuildIndexStatements(tb)
-	for _, stmt := range indexStmts {
+	return executeIndexStatements(tb)
+}
+
+// indexExecutor is an optional interface a Dialect may implement to take full
+// control of index statement execution (e.g. MySQL idempotency pre-checks).
+type indexExecutor interface {
+	ExecuteIndexStatements(db *sql.DB, tb *TableBuilder) error
+}
+
+func executeIndexStatements(tb *TableBuilder) error {
+	if ex, ok := tb.dialect.(indexExecutor); ok {
+		return ex.ExecuteIndexStatements(tb.db, tb)
+	}
+	for _, stmt := range tb.dialect.BuildIndexStatements(tb) {
 		if _, err := tb.db.Exec(stmt); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 

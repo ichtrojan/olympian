@@ -1,6 +1,7 @@
 package olympian
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 )
@@ -647,7 +648,23 @@ func (d *MySQLDialect) BuildDropColumn(tableName, columnName string) string {
 }
 
 func (d *MySQLDialect) BuildIndexStatements(tb *TableBuilder) []string {
-	var sqls []string
+	stmts := d.indexStatements(tb)
+	sqls := make([]string, len(stmts))
+	for i, s := range stmts {
+		sqls[i] = s.sql
+	}
+	return sqls
+}
+
+// mysqlIndexStmt pairs an index's resolved name with its CREATE SQL so the
+// executor can pre-check existence (MySQL has no CREATE INDEX IF NOT EXISTS).
+type mysqlIndexStmt struct {
+	name string
+	sql  string
+}
+
+func (d *MySQLDialect) indexStatements(tb *TableBuilder) []mysqlIndexStmt {
+	var stmts []mysqlIndexStmt
 	for _, col := range tb.columns {
 		if col.hasIndex {
 			indexName := col.indexName
@@ -656,7 +673,7 @@ func (d *MySQLDialect) BuildIndexStatements(tb *TableBuilder) []string {
 			}
 			sql := fmt.Sprintf("CREATE INDEX %s ON %s (%s)",
 				indexName, escapeTableName(tb.tableName, d), escapeColumnName(col.name, d))
-			sqls = append(sqls, sql)
+			stmts = append(stmts, mysqlIndexStmt{name: indexName, sql: sql})
 		}
 	}
 	for _, ci := range tb.compositeIndexes {
@@ -666,9 +683,32 @@ func (d *MySQLDialect) BuildIndexStatements(tb *TableBuilder) []string {
 		}
 		sql := fmt.Sprintf("CREATE INDEX %s ON %s (%s)",
 			indexName, escapeTableName(tb.tableName, d), buildCompositeIndexColumns(ci, d))
-		sqls = append(sqls, sql)
+		stmts = append(stmts, mysqlIndexStmt{name: indexName, sql: sql})
 	}
-	return sqls
+	return stmts
+}
+
+// ExecuteIndexStatements creates indexes idempotently on MySQL by checking
+// information_schema.statistics first (MySQL lacks CREATE INDEX IF NOT EXISTS).
+func (d *MySQLDialect) ExecuteIndexStatements(db *sql.DB, tb *TableBuilder) error {
+	for _, stmt := range d.indexStatements(tb) {
+		var exists int
+		err := db.QueryRow(
+			`SELECT COUNT(1) FROM information_schema.statistics
+			 WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?`,
+			tb.tableName, stmt.name,
+		).Scan(&exists)
+		if err != nil {
+			return err
+		}
+		if exists > 0 {
+			continue
+		}
+		if _, err := db.Exec(stmt.sql); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (d *MySQLDialect) Placeholder(_ int) string {

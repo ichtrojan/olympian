@@ -1319,6 +1319,10 @@ func TestCompositeIndexDesc(t *testing.T) {
 	}
 }
 
+func TestMySQLImplementsIndexExecutor(t *testing.T) {
+	var _ indexExecutor = (*MySQLDialect)(nil)
+}
+
 func TestCompositeIndexDescBuilder(t *testing.T) {
 	ci := &CompositeIndex{columns: []string{"a", "b", "c"}}
 	cib := &CompositeIndexBuilder{ci: ci}
