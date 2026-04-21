@@ -110,6 +110,20 @@ func escapeColumnList(columns []string, dialect Dialect) string {
 	return strings.Join(escaped, ", ")
 }
 
+// buildCompositeIndexColumns renders a composite index's column list, appending
+// " DESC" to any column marked descending.
+func buildCompositeIndexColumns(ci *CompositeIndex, dialect Dialect) string {
+	parts := make([]string, len(ci.columns))
+	for i, col := range ci.columns {
+		s := escapeColumnName(col, dialect)
+		if ci.desc[col] {
+			s += " DESC"
+		}
+		parts[i] = s
+	}
+	return strings.Join(parts, ", ")
+}
+
 // buildFKConstraint generates a foreign key constraint clause for CREATE TABLE statements.
 func buildFKConstraint(tableName string, col *Column, dialect Dialect, named bool) string {
 	var fkDef string
@@ -423,7 +437,7 @@ func (d *PostgresDialect) BuildIndexStatements(tb *TableBuilder) []string {
 			indexName = fmt.Sprintf("idx_%s_%s", tb.tableName, strings.Join(ci.columns, "_"))
 		}
 		sql := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (%s)",
-			indexName, escapeTableName(tb.tableName, d), escapeColumnList(ci.columns, d))
+			indexName, escapeTableName(tb.tableName, d), buildCompositeIndexColumns(ci, d))
 		sqls = append(sqls, sql)
 	}
 	return sqls
@@ -651,7 +665,7 @@ func (d *MySQLDialect) BuildIndexStatements(tb *TableBuilder) []string {
 			indexName = fmt.Sprintf("idx_%s_%s", tb.tableName, strings.Join(ci.columns, "_"))
 		}
 		sql := fmt.Sprintf("CREATE INDEX %s ON %s (%s)",
-			indexName, escapeTableName(tb.tableName, d), escapeColumnList(ci.columns, d))
+			indexName, escapeTableName(tb.tableName, d), buildCompositeIndexColumns(ci, d))
 		sqls = append(sqls, sql)
 	}
 	return sqls
@@ -826,7 +840,7 @@ func (d *SQLiteDialect) BuildIndexStatements(tb *TableBuilder) []string {
 			indexName = fmt.Sprintf("idx_%s_%s", tb.tableName, strings.Join(ci.columns, "_"))
 		}
 		sql := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (%s)",
-			indexName, escapeTableName(tb.tableName, d), escapeColumnList(ci.columns, d))
+			indexName, escapeTableName(tb.tableName, d), buildCompositeIndexColumns(ci, d))
 		sqls = append(sqls, sql)
 	}
 	return sqls

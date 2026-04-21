@@ -1284,6 +1284,54 @@ func TestCompositeIndexCustomName(t *testing.T) {
 	}
 }
 
+func TestCompositeIndexDesc(t *testing.T) {
+	tests := []struct {
+		name    string
+		dialect Dialect
+		want    string
+	}{
+		{"PostgreSQL", &PostgresDialect{}, "CREATE INDEX IF NOT EXISTS idx_integration_audit_ws_created ON integration_audit (workspace_id, created_at DESC)"},
+		{"MySQL", &MySQLDialect{}, "CREATE INDEX idx_integration_audit_ws_created ON integration_audit (workspace_id, created_at DESC)"},
+		{"SQLite", &SQLiteDialect{}, "CREATE INDEX IF NOT EXISTS idx_integration_audit_ws_created ON integration_audit (workspace_id, created_at DESC)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &TableBuilder{
+				tableName: "integration_audit",
+				columns:   []*Column{},
+				compositeIndexes: []*CompositeIndex{
+					{
+						columns: []string{"workspace_id", "created_at"},
+						name:    "idx_integration_audit_ws_created",
+						desc:    map[string]bool{"created_at": true},
+					},
+				},
+			}
+			sqls := tt.dialect.BuildIndexStatements(tb)
+			if len(sqls) != 1 {
+				t.Fatalf("Expected 1 index statement, got %d", len(sqls))
+			}
+			if sqls[0] != tt.want {
+				t.Errorf("Mismatch.\nGot:  %s\nWant: %s", sqls[0], tt.want)
+			}
+		})
+	}
+}
+
+func TestCompositeIndexDescBuilder(t *testing.T) {
+	ci := &CompositeIndex{columns: []string{"a", "b", "c"}}
+	cib := &CompositeIndexBuilder{ci: ci}
+	cib.Name("idx_x").Desc("b", "c")
+
+	if ci.name != "idx_x" {
+		t.Errorf("Name not set: %s", ci.name)
+	}
+	if !ci.desc["b"] || !ci.desc["c"] || ci.desc["a"] {
+		t.Errorf("Desc map wrong: %+v", ci.desc)
+	}
+}
+
 func TestColumnComment(t *testing.T) {
 	dialect := &MySQLDialect{}
 	tb := &TableBuilder{

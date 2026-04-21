@@ -72,6 +72,7 @@ type Column struct {
 type CompositeIndex struct {
 	columns []string
 	name    string
+	desc    map[string]bool
 }
 
 type ForeignKey struct {
@@ -591,6 +592,18 @@ type CompositeIndexBuilder struct {
 
 func (cib *CompositeIndexBuilder) Name(name string) *CompositeIndexBuilder {
 	cib.ci.name = name
+	return cib
+}
+
+// Desc marks the given columns as descending in the composite index.
+// Columns not listed remain ascending.
+func (cib *CompositeIndexBuilder) Desc(columns ...string) *CompositeIndexBuilder {
+	if cib.ci.desc == nil {
+		cib.ci.desc = make(map[string]bool, len(columns))
+	}
+	for _, c := range columns {
+		cib.ci.desc[c] = true
+	}
 	return cib
 }
 
