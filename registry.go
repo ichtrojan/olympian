@@ -78,16 +78,23 @@ func CreateUniqueIndex(tableName string, columns []string, indexName string) err
 func DropIndex(indexName string) error {
 	db, dialect := GetDB()
 
-	var query string
 	switch dialect.(type) {
 	case *MySQLDialect:
-		query = fmt.Sprintf("DROP INDEX %s", indexName)
+		var tableName string
+		err := db.QueryRow(
+			"SELECT table_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND index_name = ? LIMIT 1",
+			indexName,
+		).Scan(&tableName)
+		if err != nil {
+			return fmt.Errorf("DropIndex: could not locate index %q: %w", indexName, err)
+		}
+		_, err = db.Exec(fmt.Sprintf("DROP INDEX %s ON %s",
+			indexName, escapeTableName(tableName, dialect)))
+		return err
 	default:
-		query = fmt.Sprintf("DROP INDEX IF EXISTS %s", indexName)
+		_, err := db.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s", indexName))
+		return err
 	}
-
-	_, err := db.Exec(query)
-	return err
 }
 
 // HasTable checks if a table exists in the database.
