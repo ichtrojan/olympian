@@ -32,10 +32,61 @@ func SQLite() Dialect {
 }
 
 func DropColumnIfExists(tableName, columnName string) error {
+	if err := dropColumnForeignKeys(tableName, columnName); err != nil {
+		return err
+	}
 	db, dialect := GetDB()
-	query := dialect.BuildDropColumn(tableName, columnName)
-	_, err := db.Exec(query)
+	_, err := db.Exec(dialect.BuildDropColumn(tableName, columnName))
 	return err
+}
+
+func dropColumnForeignKeys(tableName, columnName string) error {
+	db, dialect := GetDB()
+
+	var (
+		query string
+		args  []interface{}
+	)
+	switch dialect.(type) {
+	case *MySQLDialect:
+		query = `SELECT constraint_name FROM information_schema.key_column_usage
+                 WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?
+                 AND referenced_table_name IS NOT NULL`
+		args = []interface{}{tableName, columnName}
+	case *PostgresDialect:
+		query = `SELECT con.conname
+                 FROM pg_constraint con
+                 JOIN pg_class rel ON rel.oid = con.conrelid
+                 JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+                 WHERE con.contype = 'f' AND rel.relname = $1 AND att.attname = $2`
+		args = []interface{}{tableName, columnName}
+	default:
+		return nil
+	}
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return fmt.Errorf("dropColumnForeignKeys: lookup failed: %w", err)
+	}
+	var names []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		names = append(names, n)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+
+	for _, n := range names {
+		if err := DropForeignKey(tableName, n); err != nil {
+			return fmt.Errorf("dropColumnForeignKeys: drop %q: %w", n, err)
+		}
+	}
+	return nil
 }
 
 func RenameColumn(tableName, oldName, newName string) error {

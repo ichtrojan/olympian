@@ -191,6 +191,9 @@ func (tb *TableBuilder) Drop() error {
 }
 
 func (tb *TableBuilder) DropColumn(columnName string) error {
+	if err := dropColumnForeignKeys(tb.tableName, columnName); err != nil {
+		return err
+	}
 	query := tb.dialect.BuildDropColumn(tb.tableName, columnName)
 	_, err := tb.db.Exec(query)
 	return err
