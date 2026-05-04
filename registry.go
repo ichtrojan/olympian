@@ -1,6 +1,8 @@
 package olympian
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -136,6 +138,9 @@ func DropIndex(indexName string) error {
 			"SELECT table_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND index_name = ? LIMIT 1",
 			indexName,
 		).Scan(&tableName)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("DropIndex: could not locate index %q: %w", indexName, err)
 		}
